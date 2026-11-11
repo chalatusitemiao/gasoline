@@ -1,0 +1,166 @@
+"use client";
+
+import { DownloadOutlined } from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
+import { App, Button, DatePicker } from "antd";
+import dayjs from "dayjs";
+import { useState } from "react";
+import { AdminPage } from "@/components/admin-page";
+import { apiFetch } from "@/lib/api-client";
+import type { AnalyticsView, FuelAnalytics } from "@/lib/fuel-analytics";
+import { downloadSheet } from "@/lib/spreadsheet-client";
+import { ConsumptionRanking, CostShare, DualTrend } from "./report-charts";
+import { reportRows } from "./report-export";
+import { CostVehicleTable, DriverTable, VehicleMonthTable } from "./report-tables";
+import { FuelCalculationNote, MetricCards, ReportPending, formatNumber } from "./report-ui";
+import { rankDrivers } from "./report-values";
+import styles from "./reports.module.css";
+
+type ReportView = Exclude<AnalyticsView, "dashboard">;
+
+const titles: Record<ReportView, string> = {
+  vehicles: "单车月报",
+  drivers: "司机考核",
+  costs: "成本表",
+};
+
+function VehicleReport({ report }: { report: FuelAnalytics }) {
+  const { total } = report;
+  return (
+    <>
+      <MetricCards metrics={[
+        { label: "加油量", value: total.liters, unit: "L" },
+        { label: "油费", value: total.amount, unit: "元", monetary: true },
+        { label: "百公里油耗", value: total.consumption, unit: "L/100km" },
+        { label: "行驶里程", value: total.distance, unit: "km" },
+        { label: "异常记录", value: total.anomalies, unit: "条" },
+      ]} />
+      <DualTrend report={report} />
+      <VehicleMonthTable report={report} />
+    </>
+  );
+}
+
+function DriverReport({ report }: { report: FuelAnalytics }) {
+  const ranked = rankDrivers(report).filter((driver) => driver.consumption !== null);
+  const lowest = ranked[0];
+  const highest = ranked.at(-1);
+
+  return (
+    <>
+      <MetricCards metrics={[
+        { label: "车队均值", value: report.total.consumption, unit: "L/100km" },
+        { label: "参与司机", value: report.drivers.length, unit: "人" },
+        {
+          label: "最低油耗司机",
+          value: lowest?.name ?? null,
+          detail: lowest ? `${formatNumber(lowest.consumption)} L/100km` : undefined,
+        },
+        {
+          label: "最高油耗司机",
+          value: highest?.name ?? null,
+          detail: highest ? `${formatNumber(highest.consumption)} L/100km` : undefined,
+        },
+        { label: "异常记录", value: report.total.anomalies, unit: "条" },
+      ]} />
+      <ConsumptionRanking
+        title="司机百公里油耗对比"
+        rows={ranked.map(({ name, consumption }) => ({ label: name, consumption }))}
+        fleet={report.total.consumption}
+      />
+      <DriverTable report={report} />
+    </>
+  );
+}
+
+function CostReport({ report }: { report: FuelAnalytics }) {
+  const { total } = report;
+  return (
+    <>
+      <MetricCards metrics={[
+        { label: "油费合计", value: total.amount, unit: "元", monetary: true },
+        { label: "每公里油费", value: total.amountPerKm, unit: "元/km", monetary: true },
+        { label: "平均油价", value: total.averagePrice, unit: "元/L", monetary: true },
+        { label: "总油量", value: total.liters, unit: "L" },
+        { label: "百公里油耗", value: total.consumption, unit: "L/100km" },
+      ]} />
+      <div className={styles.twoCharts}>
+        <DualTrend report={report} costs />
+        <CostShare vehicles={report.vehicles} />
+      </div>
+      <CostVehicleTable report={report} />
+    </>
+  );
+}
+
+export function MonthlyReport({ view, initialMonth }: { view: ReportView; initialMonth: string }) {
+  const { message } = App.useApp();
+  const [range, setRange] = useState({ from: initialMonth, to: initialMonth });
+  const [exporting, setExporting] = useState(false);
+  const title = titles[view];
+  const query = useQuery({
+    queryKey: ["fuel", "analytics", view, range.from, range.to],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({ view, from: range.from, to: range.to });
+      return apiFetch<FuelAnalytics>(`/api/fuel/analytics?${params}`, { signal });
+    },
+  });
+  const report = query.data;
+
+  async function exportReport() {
+    if (!report) return;
+
+    setExporting(true);
+    try {
+      const filename = `${title}-${report.from}至${report.to}.xlsx`;
+      await downloadSheet(filename, title, reportRows(view, report));
+    } catch {
+      message.error("导出失败，请重试。");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <AdminPage
+      className={styles.report}
+      title={title}
+      actions={(
+        <>
+          <div className={styles.monthFilter}>
+            <label htmlFor="report-from-month">月份区间</label>
+            <DatePicker.RangePicker
+              className={styles.range}
+              id={{ start: "report-from-month", end: "report-to-month" }}
+              picker="month"
+              format="YYYY-MM"
+              allowClear={false}
+              placeholder={["开始月份", "结束月份"]}
+              value={[dayjs(`${range.from}-01`), dayjs(`${range.to}-01`)]}
+              onChange={(_, months) => {
+                if (months[0] && months[1]) setRange({ from: months[0], to: months[1] });
+              }}
+            />
+          </div>
+          <Button
+            icon={<DownloadOutlined />}
+            disabled={!report}
+            loading={exporting}
+            onClick={() => { void exportReport(); }}
+          >
+            导出 Excel
+          </Button>
+        </>
+      )}
+    >
+      {!report ? <ReportPending failed={query.isError} onRetry={() => { void query.refetch(); }} /> : (
+        <>
+          {view === "vehicles" ? <VehicleReport report={report} /> : null}
+          {view === "drivers" ? <DriverReport report={report} /> : null}
+          {view === "costs" ? <CostReport report={report} /> : null}
+          <FuelCalculationNote showCosts={view === "costs"} />
+        </>
+      )}
+    </AdminPage>
+  );
+}

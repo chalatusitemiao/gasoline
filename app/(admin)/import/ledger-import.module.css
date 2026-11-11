@@ -1,0 +1,83 @@
+.page {
+  display: grid;
+  min-width: 0;
+  gap: var(--app-section-gap);
+}
+
+.card {
+  min-width: 0;
+  border-color: var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.uploadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-section-gap);
+}
+
+.uploadInfo {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+}
+
+.fileIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--app-card-radius);
+  background: #e6f4ff;
+  color: var(--app-primary);
+  font-size: 20px;
+}
+
+.fileText {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.hint,
+.fileName {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  color: var(--app-text-secondary);
+}
+
+.fileName {
+  color: var(--app-text);
+  font-weight: 500;
+}
+
+.mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: var(--app-section-gap);
+}
+
+.mapping label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--app-text);
+  font-weight: 500;
+}
+
+.sectionGap {
+  margin-top: var(--app-section-gap);
+}
+
+@media (max-width: 640px) {
+  .uploadRow {
+    flex-wrap: wrap;
+  }
+}

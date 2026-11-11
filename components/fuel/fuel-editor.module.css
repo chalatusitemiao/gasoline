@@ -1,0 +1,99 @@
+.editorGrid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: var(--app-section-gap);
+}
+
+.editorGrid > :first-child {
+  flex: 2 1 420px;
+}
+
+.editorGrid > :last-child {
+  flex: 1 1 248px;
+}
+
+.editStack {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  min-width: 0;
+  border-color: var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--app-section-gap);
+}
+
+.preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr));
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid #e6f4ff;
+  border-radius: var(--app-card-radius);
+  background: #f5faff;
+}
+
+.preview dt, .note {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+}
+
+.preview dd {
+  margin: 3px 0 0;
+  color: var(--app-text);
+  font-size: clamp(18px, 4vw, 24px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.previewAmount dd {
+  color: var(--app-primary);
+}
+
+.preview small {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.note, .warning {
+  margin: 0 0 16px;
+}
+
+.recent {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.recent li:first-child { padding-top: 0; }
+.recent li:last-child { border-bottom: 0; padding-bottom: 0; }
+.recent time { font-weight: 600; }
+.recent span { grid-column: 1; color: var(--app-text-secondary); font-size: 13px; }
+.recent strong { grid-column: 2; grid-row: 1 / 3; align-self: center; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 520px) {
+  .fields { grid-template-columns: minmax(0, 1fr); }
+  .card :global(.ant-card-body) { padding: 16px; }
+  .card :global(.ant-card-head) { padding-inline: 16px; }
+}

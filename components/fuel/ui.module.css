@@ -1,0 +1,25 @@
+.alert {
+  margin-bottom: 12px;
+}
+
+.table {
+  min-width: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.search {
+  width: min(272px, 62vw);
+}
+
+.section {
+  margin-bottom: var(--app-section-gap);
+}
+
+.note {
+  margin: 12px 0 0;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}

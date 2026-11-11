@@ -1,0 +1,202 @@
+.report {
+  display: grid;
+  gap: var(--app-section-gap);
+  min-width: 0;
+}
+
+.range {
+  width: min(248px, 76vw);
+}
+
+.monthFilter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-secondary);
+  font-size: 14px;
+}
+
+.period {
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  padding: 4px 11px;
+  color: var(--app-text-secondary);
+  background: var(--app-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0;
+  gap: var(--app-section-gap);
+}
+
+.metric {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.metric dt {
+  color: var(--app-text-secondary);
+  font-size: 14px;
+}
+
+.metricValue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  align-items: baseline;
+  min-height: 34px;
+  margin: 5px 0 0;
+  color: var(--app-text);
+  font-size: clamp(21px, 2.2vw, 28px);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.metricValue small {
+  color: var(--app-text-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.metricDetail {
+  margin: 0;
+  color: var(--app-text-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.metricDetail strong {
+  color: var(--app-text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.twoCharts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--app-section-gap);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  padding: 0 16px 12px;
+  background: var(--app-surface);
+}
+
+.panelTitle {
+  margin: 0 -16px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.chartScroll {
+  max-height: 392px;
+  overflow-y: auto;
+}
+
+.chartEmpty,
+.chartPlaceholder {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 232px;
+  color: var(--app-text-secondary);
+}
+
+.loading {
+  padding: 16px;
+}
+
+.table {
+  min-width: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.tableLink {
+  color: var(--app-primary);
+}
+
+.tableLink:hover {
+  text-decoration: underline;
+}
+
+.cell {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cell > small {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.cell .flag {
+  color: #cf1322;
+  font-weight: 600;
+}
+
+.summary {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.note {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border: 1px solid #d6e8ff;
+  border-radius: var(--app-card-radius);
+  background: #f0f7ff;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.note strong {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+@media (max-width: 1080px) {
+  .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .twoCharts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric {
+    padding: 12px;
+  }
+}

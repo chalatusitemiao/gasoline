@@ -1,0 +1,40 @@
+.fileControls, .column {
+  width: 100%;
+}
+
+.count {
+  display: block;
+  margin: 8px 0 14px;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+  margin-block: 16px;
+}
+
+.results > div {
+  min-width: 0;
+  border-color: var(--app-border);
+  border-radius: var(--app-card-radius);
+}
+
+.resultList {
+  max-height: 110px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.error {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 600px) {
+  .results { grid-template-columns: minmax(0, 1fr); }
+}

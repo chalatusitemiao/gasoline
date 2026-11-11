@@ -1,0 +1,5 @@
+.mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  background: url("/gasoline-logo.webp") center / contain no-repeat;
+}

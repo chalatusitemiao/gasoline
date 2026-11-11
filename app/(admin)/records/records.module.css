@@ -1,0 +1,70 @@
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr));
+  column-gap: var(--app-section-gap);
+}
+
+.filterActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: var(--app-section-gap);
+}
+
+.summary > div {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.summary :global(.ant-statistic-content-suffix) {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.note {
+  margin: 10px 0 var(--app-section-gap);
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.recordTable {
+  padding: 16px 24px 0;
+}
+
+.auditEntry {
+  overflow-wrap: anywhere;
+}
+
+.auditEntry time {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+}
+
+.auditEntry p {
+  margin: 4px 0;
+}
+
+.auditEntry ul {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+  list-style: disc;
+}
+
+@media (max-width: 600px) {
+  .recordTable { padding-inline: 12px; }
+  .summary { gap: 8px; }
+  .summary > div { padding: 12px; }
+}

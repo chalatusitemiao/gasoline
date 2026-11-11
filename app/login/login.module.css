@@ -1,0 +1,37 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100svh;
+  overflow: auto;
+  background-color: #f0f4fa;
+  background-image: url("/ant-design-pro/login-background.png");
+  background-size: 100% 100%;
+}
+
+.content {
+  flex: 1;
+  padding-block: 32px;
+}
+
+.modeHeading {
+  margin: 0 0 16px;
+  border-block-end: 1px solid var(--app-border);
+  color: var(--app-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  text-align: center;
+}
+
+.modeHeading span {
+  display: inline-block;
+  margin-block-end: -1px;
+  padding-block: 12px;
+  border-block-end: 2px solid var(--app-primary);
+}
+
+.error {
+  margin-bottom: 24px;
+}
+

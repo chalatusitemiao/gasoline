@@ -1,0 +1,50 @@
+.shell {
+  min-height: 100dvh;
+}
+
+.shell :global(.ant-pro-layout-header) {
+  border-block-end: 1px solid var(--app-border);
+}
+
+.shell :global(.ant-pro-sider-fixed) {
+  border-inline-end: 1px solid rgb(0 0 0 / 5%);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.headerAction {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: var(--app-text);
+}
+
+.account {
+  height: 36px;
+  padding: 0 6px;
+}
+
+.avatar {
+  flex: 0 0 auto;
+  background: #e6f4ff;
+  color: #0958d9;
+}
+
+.accountName {
+  max-width: min(22vw, 144px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content {
+  box-sizing: border-box;
+  max-width: 1680px;
+  min-width: 0;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 3.08vw, 40px);
+}
