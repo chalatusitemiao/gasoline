@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomBytes } from "node:crypto";
 import { Client } from "pg";
 import { z } from "zod";
 import { migrateDatabase } from "./db/migrate";
@@ -47,17 +48,40 @@ export function settingsView(settings: SystemSettings) {
   };
 }
 
-async function inspectDatabase(connectionString: string, timeZone: string, verifySchema = false) {
+async function verifyMigrationTarget(client: Client, connectionString: string) {
+  const migration = new Client({ connectionString, connectionTimeoutMillis: 5_000, query_timeout: 5_000 });
+  const probe = randomBytes(8).readBigInt64BE().toString();
+  try {
+    await migration.connect();
+    await client.query("BEGIN");
+    // A transaction lock is visible only to other connections to this database.
+    await client.query("SELECT pg_advisory_xact_lock($1::bigint)", [probe]);
+    const { rows } = await migration.query<{ sameDatabase: boolean }>(
+      'SELECT NOT pg_try_advisory_xact_lock($1::bigint) AS "sameDatabase"', [probe],
+    );
+    if (!rows[0]?.sameDatabase) {
+      throw new ApiError(400, "应用连接与迁移直连必须指向同一个数据库");
+    }
+  } finally {
+    await migration.end();
+  }
+}
+
+async function inspectDatabase(
+  connectionString: string,
+  timeZone: string,
+  { verifySchema = false, migrationConnectionString = "" } = {},
+) {
   const client = new Client({ connectionString, connectionTimeoutMillis: 5_000, query_timeout: 5_000 });
   try {
     await client.connect();
-    const { rows } = await client.query<{ name: string }>(
-      "SELECT current_database() AS name, current_timestamp AT TIME ZONE $1", [timeZone],
-    );
+    await client.query("SELECT current_timestamp AT TIME ZONE $1", [timeZone]);
     if (verifySchema) {
       await client.query("SELECT 1 FROM users, sessions, login_attempts, vehicles, drivers, fuel_records, fuel_changes, fuel_deletions LIMIT 0");
     }
-    return rows[0].name;
+    if (migrationConnectionString && migrationConnectionString !== connectionString) {
+      await verifyMigrationTarget(client, migrationConnectionString);
+    }
   } finally {
     await client.end();
   }
@@ -90,13 +114,9 @@ export async function saveSystemSettings(
 
   if (setup || databaseChanged || current.migrationDatabaseUrl !== migrationConnectionString || current.timeZone !== settings.timeZone) {
     try {
-      const name = await inspectDatabase(connectionString, settings.timeZone);
-      if (migrationConnectionString && migrationConnectionString !== connectionString) {
-        const migrationName = await inspectDatabase(migrationConnectionString, settings.timeZone);
-        if (name !== migrationName) throw new ApiError(400, "应用连接与迁移直连必须指向同一个数据库");
-      }
+      await inspectDatabase(connectionString, settings.timeZone, { migrationConnectionString });
       if (setup || databaseChanged) await migrateDatabase(migrationConnectionString || connectionString);
-      await inspectDatabase(connectionString, settings.timeZone, true);
+      await inspectDatabase(connectionString, settings.timeZone, { verifySchema: true });
     } catch (error) {
       if (error instanceof ApiError) throw error;
       throw new ApiError(400, "数据库检查或迁移失败，请核对连接串、权限和业务时区");

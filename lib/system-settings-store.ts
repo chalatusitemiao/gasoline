@@ -123,7 +123,7 @@ export async function writeStoredSettings(settings: SystemSettings, revision: st
 
   const { directory, file, lock } = diskLocation();
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  const handle = await open(lock, "wx", 0o600).catch((error: unknown) => {
+  const handle = await open(/* turbopackIgnore: true */ lock, "wx", 0o600).catch((error: unknown) => {
     if (hasCode(error, "EEXIST")) throw new SettingsConflictError();
     throw error;
   });

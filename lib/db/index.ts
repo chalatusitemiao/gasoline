@@ -9,8 +9,8 @@ function createDatabase(connectionString: string) {
   const pool = new Pool({
     connectionString,
     max: 5,
-    connectionTimeoutMillis: 5_000,
-    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 15_000,
+    idleTimeoutMillis: 30_000,
     allowExitOnIdle: true,
   });
 

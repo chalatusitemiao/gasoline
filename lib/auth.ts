@@ -38,6 +38,10 @@ function createAuth(origin: string, db: Awaited<ReturnType<typeof getDb>>) {
     appName: "Gasoline",
     baseURL: origin,
     secret: getAuthSecret(),
+    logger: {
+      level: "error",
+      log: () => console.error("认证服务处理失败"),
+    },
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: { user, session, account, verification },
@@ -84,8 +88,13 @@ export async function getAuth(requestHeaders: Headers, requestUrl?: string) {
 export async function getRequestSession(requestHeaders: Headers, requestUrl?: string) {
   if (!isSystemConfigured(await getSystemSettings())) return null;
   const instance = await getAuth(requestHeaders, requestUrl);
-  const result = await instance.api.getSession({ headers: requestHeaders });
-  return result?.user.id === fleetAccountId ? result : null;
+  try {
+    const result = await instance.api.getSession({ headers: requestHeaders });
+    return result?.user.id === fleetAccountId ? result : null;
+  } catch {
+    // Auth adapter errors can contain the session token as a query parameter.
+    throw new Error("登录会话暂时无法读取");
+  }
 }
 
 export const getPageSession = cache(async () => {
