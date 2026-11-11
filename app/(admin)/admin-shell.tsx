@@ -3,7 +3,6 @@
 import {
   ApiOutlined,
   BarChartOutlined,
-  BookOutlined,
   CarOutlined,
   DashboardOutlined,
   FileExcelOutlined,
@@ -175,11 +174,6 @@ export function AdminShell({
           )
           : defaultDom
       }
-      actionsRender={() => [
-        <NavigationLink key="docs" href="/docs" className={styles.headerAction} aria-label="接口文档" title="接口文档">
-          <BookOutlined />
-        </NavigationLink>,
-      ]}
       avatarProps={{
         render: () => (
           <Dropdown
