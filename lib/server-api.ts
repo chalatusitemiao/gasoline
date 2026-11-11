@@ -47,7 +47,7 @@ export async function requireSameOrigin(request: Request) {
 
 export function apiFailure(error: unknown) {
   if (error instanceof ApiError) return apiResponse(error.status, null, error.message);
-  console.error("油量监控接口处理失败", error instanceof Error ? error.name : "UnknownError");
+  console.error("车辆监控接口处理失败", error instanceof Error ? error.name : "UnknownError");
   return apiResponse(500, null, "操作失败，请稍后重试");
 }
 

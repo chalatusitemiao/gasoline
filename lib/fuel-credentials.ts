@@ -43,7 +43,7 @@ export async function upsertFleetUser(
 
 export async function authorizeFuelAccount(username: string, password: string) {
   const { username: expectedUsername, passwordHash } = await getSystemSettings();
-  if (!expectedUsername || !passwordHash) throw new Error("未配置油量监控账号");
+  if (!expectedUsername || !passwordHash) throw new Error("未配置车辆监控账号");
 
   const db = await getDb();
   return db.transaction(async (tx) => {

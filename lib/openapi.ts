@@ -72,7 +72,7 @@ const credentials = {
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
-    title: "油量监控接口",
+    title: "车辆监控接口",
     version: "0.1.0",
     description: "登录与注册使用同源请求，其余接口使用 HttpOnly 会话 Cookie。接口统一返回 code、data、message。",
   },

@@ -134,7 +134,7 @@ export function AdminShell({
     <ProLayout
       {...layoutSettings}
       className={styles.shell}
-      title="油量监控"
+      title="车辆监控"
       logo={<BrandMark />}
       route={routes}
       location={{ pathname: currentPath }}
@@ -144,7 +144,7 @@ export function AdminShell({
       contentStyle={{ padding: 0, minWidth: 0 }}
       menu={{ locale: false }}
       headerTitleRender={(logo, title) => (
-        <NavigationLink href="/dashboard" className={styles.brand} aria-label="油量监控首页">
+        <NavigationLink href="/dashboard" className={styles.brand} aria-label="车辆监控首页">
           {logo}
           {title}
         </NavigationLink>
