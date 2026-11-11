@@ -17,7 +17,7 @@
 
 - 路由处理器放在 `app/api/`。需要登录的业务接口复用 `lib/server-api.ts` 中的 `apiRoute`，服务端使用 Zod 校验外部输入。
 - 业务 JSON 响应统一为 `{ code, data, message }`。成功时 `code` 为 `0`，失败时返回相应 HTTP 状态码和错误信息。
-- 新增或修改接口时，同步更新 `lib/openapi.ts` 中的参数、响应和错误定义。登录后可在 `/docs` 查看 Scalar 接口文档。
+- 新增或修改接口时，同步更新 `lib/openapi.ts` 中的参数、响应和错误定义。登录后可在 `/docs` 查看接口文档。
 
 ## 数据库与业务计算
 

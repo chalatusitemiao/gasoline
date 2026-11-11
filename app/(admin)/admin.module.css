@@ -15,6 +15,14 @@
   align-items: center;
 }
 
+.headerAction {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: var(--app-text);
+}
+
 .account {
   height: 36px;
   padding: 0 6px;

@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  ApiOutlined,
   BarChartOutlined,
+  BookOutlined,
   CarOutlined,
   DashboardOutlined,
   FileExcelOutlined,
@@ -66,8 +66,9 @@ const navigation: NavigationItem[] = [
     ],
   },
   { path: "/settings", name: "系统配置", icon: <SettingOutlined /> },
-  { path: "/docs", name: "接口文档", icon: <ApiOutlined /> },
 ];
+
+const docsPage = { path: "/docs", name: "接口文档" };
 
 const routes = {
   path: "/",
@@ -116,7 +117,9 @@ export function AdminShell({
   const [signingOut, setSigningOut] = useState(false);
   const currentPath = pathname.replace(/\/$/, "");
   const section = navigation.find((item) => item.children?.some((child) => child.path === currentPath));
-  const page = (section?.children ?? navigation).find((item) => item.path === currentPath);
+  const page = currentPath === docsPage.path
+    ? docsPage
+    : (section?.children ?? navigation).find((item) => item.path === currentPath);
 
   async function signOut() {
     setSigningOut(true);
@@ -174,6 +177,18 @@ export function AdminShell({
           )
           : defaultDom
       }
+      actionsRender={() => [
+        <NavigationLink
+          key={docsPage.path}
+          href={docsPage.path}
+          className={styles.headerAction}
+          aria-label={docsPage.name}
+          aria-current={currentPath === docsPage.path ? "page" : undefined}
+          title={docsPage.name}
+        >
+          <BookOutlined />
+        </NavigationLink>,
+      ]}
       avatarProps={{
         render: () => (
           <Dropdown
