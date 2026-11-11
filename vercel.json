@@ -2,5 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npx --yes pnpm@11.5.0 install --frozen-lockfile",
-  "buildCommand": "npx --yes pnpm@11.5.0 build"
+  "buildCommand": "npx --yes pnpm@11.5.0 build && npx --yes pnpm@11.5.0 db:migrate"
 }

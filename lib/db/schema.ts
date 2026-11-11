@@ -3,6 +3,12 @@ import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-c
 export * from "./fuel-schema";
 export * from "./auth-guard-schema";
 
+export const systemSettingsTable = pgTable("system_settings", {
+  id: text("id").primaryKey(),
+  encrypted: text("encrypted").notNull(),
+  revision: text("revision").notNull(),
+});
+
 export const user = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

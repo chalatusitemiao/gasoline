@@ -66,7 +66,7 @@ const navigation: NavigationItem[] = [
       { path: "/drivers", name: "司机档案", icon: <TeamOutlined /> },
     ],
   },
-  { path: "/settings", name: "系统设置", icon: <SettingOutlined /> },
+  { path: "/settings", name: "系统配置", icon: <SettingOutlined /> },
   { path: "/docs", name: "接口文档", icon: <ApiOutlined /> },
 ];
 

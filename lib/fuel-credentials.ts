@@ -16,6 +16,15 @@ function matches(input: string, expected: string) {
   return timingSafeEqual(hash(input), hash(expected));
 }
 
+export function getRegistrationKey() {
+  return process.env.REGISTRATION_KEY?.trim() || "";
+}
+
+export function matchesRegistrationKey(input: string) {
+  const expected = getRegistrationKey();
+  return Boolean(expected && matches(input, expected));
+}
+
 export async function authorizeFuelAccount(username: string, password: string) {
   const { username: expectedUsername, passwordHash } = await getSystemSettings();
   if (!expectedUsername || !passwordHash) throw new Error("未配置油量监控账号");

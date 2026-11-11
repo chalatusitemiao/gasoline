@@ -2,7 +2,6 @@ import "server-only";
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { getSystemSettings } from "../system-settings";
 import * as schema from "./schema";
 
 function createDatabase(connectionString: string) {
@@ -25,9 +24,13 @@ const globals = globalThis as typeof globalThis & {
   gasolineDatabase?: { url: string; db: ReturnType<typeof createDatabase> };
 };
 
+export function getDatabaseUrl() {
+  return process.env.DATABASE_URL?.trim() || "";
+}
+
 export async function getDb() {
-  const { databaseUrl } = await getSystemSettings();
-  if (!databaseUrl) throw new Error("请先在系统设置中配置数据库");
+  const databaseUrl = getDatabaseUrl();
+  if (!databaseUrl) throw new Error("请配置 DATABASE_URL 环境变量");
   if (!globals.gasolineDatabase || globals.gasolineDatabase.url !== databaseUrl) {
     // 旧连接池的空闲连接会自动回收，在途事务可以继续完成。
     globals.gasolineDatabase = { url: databaseUrl, db: createDatabase(databaseUrl) };

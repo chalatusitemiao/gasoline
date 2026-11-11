@@ -35,3 +35,10 @@
   margin-bottom: 24px;
 }
 
+.accountLink {
+  color: var(--app-primary);
+}
+
+.accountLink:hover {
+  text-decoration: underline;
+}

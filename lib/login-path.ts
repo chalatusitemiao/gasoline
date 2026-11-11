@@ -11,6 +11,7 @@ export function safeReturnTo(value: unknown): string {
     const url = new URL(value, base);
     if (url.origin !== base || url.pathname.startsWith("//") ||
         url.pathname === "/login" || url.pathname.startsWith("/login/") ||
+        url.pathname === "/register" || url.pathname.startsWith("/register/") ||
         url.pathname === "/api" || url.pathname.startsWith("/api/")) {
       return homePath;
     }

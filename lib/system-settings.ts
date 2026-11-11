@@ -3,14 +3,13 @@ import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { cache } from "react";
-import { readStoredSettings, type SystemSettings } from "./system-settings-store";
+import { getDatabaseUrl } from "./db";
+import { readLegacyStoredSettings, readStoredSettings, type SystemSettings } from "./system-settings-store";
 
 export type { SystemSettings } from "./system-settings-store";
 
 export const defaultSystemSettings: SystemSettings = {
   authUrl: "",
-  databaseUrl: "",
-  migrationDatabaseUrl: "",
   username: "",
   passwordHash: "",
   timeZone: "Asia/Shanghai",
@@ -41,8 +40,8 @@ export async function verifySettingsPassword(password: string, hash: string) {
   return timingSafeEqual(actual, expected);
 }
 
-export function isSystemConfigured(settings: SystemSettings) {
-  return Boolean(settings.databaseUrl && settings.username && settings.passwordHash);
+export function hasFleetAccount(settings: SystemSettings) {
+  return Boolean(settings.username && settings.passwordHash);
 }
 
 export function isBusinessTimeZone(value: string) {
@@ -65,14 +64,12 @@ async function legacyPasswordHash(value: string | undefined) {
   return legacyPassword.hash;
 }
 
-async function readLegacySettings(): Promise<SystemSettings> {
+async function settingsFromEnvironment(): Promise<SystemSettings> {
   const samples = Number(process.env.FUEL_BASELINE_SAMPLES);
   const multiplier = Number(process.env.FUEL_ANOMALY_MULTIPLIER);
   const zone = process.env.FUEL_TIME_ZONE;
   return {
     authUrl: process.env.BETTER_AUTH_URL?.trim() || "",
-    databaseUrl: process.env.DATABASE_URL?.trim() || "",
-    migrationDatabaseUrl: process.env.DATABASE_URL_UNPOOLED?.trim() || "",
     username: process.env.FUEL_LOGIN_USERNAME?.trim() || "",
     passwordHash: await legacyPasswordHash(process.env.FUEL_LOGIN_PASSWORD),
     timeZone: zone && isBusinessTimeZone(zone) ? zone : defaultSystemSettings.timeZone,
@@ -84,8 +81,13 @@ async function readLegacySettings(): Promise<SystemSettings> {
 }
 
 async function loadSnapshot() {
-  const saved = await readStoredSettings();
-  return saved ?? { settings: await readLegacySettings(), revision: null };
+  if (getDatabaseUrl()) {
+    const saved = await readStoredSettings();
+    if (saved) return saved;
+    const legacy = await readLegacyStoredSettings();
+    if (legacy) return { settings: legacy, revision: null };
+  }
+  return { settings: await settingsFromEnvironment(), revision: null };
 }
 
 const readPageSnapshot = cache(loadSnapshot);

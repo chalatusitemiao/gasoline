@@ -7,12 +7,12 @@ import { setSessionCookie } from "better-auth/cookies";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { getDb } from "./db";
+import { getDatabaseUrl, getDb } from "./db";
 import { account, session, user, verification } from "./db/schema";
-import { authorizeFuelAccount, fleetAccountId } from "./fuel-credentials";
+import { authorizeFuelAccount, fleetAccountId, getRegistrationKey } from "./fuel-credentials";
 import { loginErrorMessage, loginSchema } from "./login-contract";
 import { loginPath, returnToHeader } from "./login-path";
-import { getSystemSettings, isSystemConfigured, withSystemSettings } from "./system-settings";
+import { getSystemSettings, hasFleetAccount, withSystemSettings } from "./system-settings";
 import { getAuthSecret } from "./system-settings-store";
 
 export function getRequestOrigin(requestHeaders: Headers, requestUrl?: string) {
@@ -86,7 +86,7 @@ export async function getAuth(requestHeaders: Headers, requestUrl?: string) {
 }
 
 export async function getRequestSession(requestHeaders: Headers, requestUrl?: string) {
-  if (!isSystemConfigured(await getSystemSettings())) return null;
+  if (!getDatabaseUrl() || !hasFleetAccount(await getSystemSettings())) return null;
   const instance = await getAuth(requestHeaders, requestUrl);
   try {
     const result = await instance.api.getSession({ headers: requestHeaders });
@@ -100,8 +100,12 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
 export const getPageSession = cache(async () => {
   const requestHeaders = await headers();
   return withSystemSettings(async () => {
-    const configured = isSystemConfigured(await getSystemSettings());
-    return { configured, session: configured ? await getRequestSession(requestHeaders) : null };
+    if (!getDatabaseUrl()) return { registrationEnabled: false, session: null };
+    const hasAccount = hasFleetAccount(await getSystemSettings());
+    return {
+      registrationEnabled: !hasAccount && Boolean(getRegistrationKey()),
+      session: hasAccount ? await getRequestSession(requestHeaders) : null,
+    };
   });
 });
 
@@ -110,8 +114,7 @@ export async function getSession() {
 }
 
 export async function requirePageSession() {
-  const { configured, session } = await getPageSession();
-  if (!configured) redirect("/setup");
+  const { session } = await getPageSession();
   if (!session) redirect(loginPath((await headers()).get(returnToHeader)));
   return session;
 }

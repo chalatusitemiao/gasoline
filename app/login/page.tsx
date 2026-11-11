@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPageSession } from "@/lib/auth";
 import { safeReturnTo } from "@/lib/login-path";
-import { LoginForm } from "./login-form";
+import { AccountForm } from "./account-form";
 import styles from "./login.module.css";
 
 export const metadata: Metadata = {
@@ -15,17 +15,16 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
   const next = safeReturnTo((await searchParams).next);
-  const { configured, session } = await getPageSession();
+  const { registrationEnabled, session } = await getPageSession();
 
-  if (!configured) redirect("/setup");
   if (session) {
     redirect(next);
   }
 
   return (
-    <main className={styles.screen} aria-labelledby="login-title">
+    <main className={styles.screen} aria-labelledby="account-title">
       <div className={styles.content}>
-        <LoginForm next={next} />
+        <AccountForm mode="login" next={next} registrationEnabled={registrationEnabled} />
       </div>
     </main>
   );
