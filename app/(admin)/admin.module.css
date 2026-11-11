@@ -43,6 +43,7 @@
 
 .content {
   box-sizing: border-box;
+  inline-size: 100%;
   max-width: 1680px;
   min-width: 0;
   margin-inline: auto;

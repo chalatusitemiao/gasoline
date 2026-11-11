@@ -4,7 +4,7 @@
 
 ## 本地启动
 
-使用 Node.js 24、pnpm 11 和 PostgreSQL。先创建空数据库，然后在项目根目录执行。
+使用 Node.js 24、pnpm 11 和 PostgreSQL。先创建一个供油量监控使用的 PostgreSQL 数据库，然后在项目根目录执行。
 
 ```sh
 pnpm install
@@ -12,24 +12,32 @@ cp .env.example .env.local
 openssl rand -base64 32
 ```
 
-将随机字符串填入 `BETTER_AUTH_SECRET`，填写数据库连接和后台账号密码。
+将随机字符串填入 `.env.local` 的 `BETTER_AUTH_SECRET`，然后生成初始化验证码并启动应用。
 
 ```sh
-pnpm db:migrate
+pnpm setup:code
 pnpm dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000) 并使用配置的账号登录。已有数据库运行同一迁移命令即可应用新增迁移。修改 Drizzle 表结构后，可用 `pnpm db:generate` 生成后续迁移。
+打开 [初始化页面](http://localhost:3000/setup)，填写验证码、数据库连接和后台账号密码。应用会执行数据库迁移，完成后使用刚设置的账号登录。
 
-| 变量 | 用途 |
+## 系统设置
+
+登录后打开「系统设置」修改以下项目。
+
+| 设置 | 用途 |
 | --- | --- |
-| `DATABASE_URL` | 应用的 PostgreSQL 连接串。Vercel 上可填写服务商的连接池地址。 |
-| `DATABASE_URL_UNPOOLED` | 可选的迁移专用直连地址。省略时使用 `DATABASE_URL`。 |
-| `BETTER_AUTH_URL` | 实际访问的源地址。本地默认 `http://localhost:3000`，Vercel 使用当前环境的 HTTPS 域名。 |
-| `BETTER_AUTH_SECRET` | 至少 32 个字符的随机密钥，每个环境独立设置。 |
-| `FUEL_LOGIN_USERNAME`、`FUEL_LOGIN_PASSWORD` | 唯一的后台登录凭据，只在服务端使用。 |
-| `FUEL_TIME_ZONE` | 用于业务日期、当前月和删除日志保留期限，默认 `Asia/Shanghai`。 |
-| `FUEL_BASELINE_SAMPLES`、`FUEL_ANOMALY_MULTIPLIER` | 油耗基线的取样条数与异常倍数，默认 `5` 和 `1.3`。配置变更在下一次写入并重算相关车辆时生效。 |
+| 站点地址 | 留空时自动使用当前访问的协议、域名和端口。 |
+| PostgreSQL 连接串和迁移直连 | 应用可使用连接池地址。填写直连时，应与应用连接指向同一个数据库。更换应用连接会对新库执行迁移，旧库数据需单独迁移。 |
+| 后台账号 | 可修改用户名和密码，密码留空时保留当前值。 |
+| 业务时区 | 可识别设备时区，也可搜索选择。用于业务日期、报表当前月和删除日志保留期限，默认 `Asia/Shanghai`。 |
+| 油耗基线样本数和异常倍数 | 默认 `5` 和 `1.3`。修改后在下一次重算相关车辆时生效。 |
+
+设置加密保存在项目的 `.gasoline/settings.enc` 中，自托管部署需要持久保留 `.gasoline/` 目录和对应的 `BETTER_AUTH_SECRET`。账号密码以加盐哈希保存。
+
+已有部署可以用旧环境变量继续登录。在「系统设置」保存一次后，配置会写入新存储，随后可以移除旧的数据库、站点、登录和业务环境变量。保留原有 `BETTER_AUTH_SECRET`。
+
+运行 `pnpm db:migrate` 会从已保存的设置读取数据库连接并应用新增迁移。修改 Drizzle 表结构后，可用 `pnpm db:generate` 生成后续迁移。
 
 ## 台账口径
 
@@ -48,6 +56,6 @@ pnpm dev
 
 登录后访问 `/docs` 使用 Scalar 查看和调试业务接口。OpenAPI JSON 位于 `/api/openapi`。业务响应统一使用 `{code,data,message}`，成功时 `code` 为 `0`。会话 12 小时固定有效，连续 5 次凭据错误锁定 5 分钟。
 
-Vercel 使用 Next.js 框架预设。部署前用 `pnpm install` 更新锁文件并提交，按目标环境配置上表变量和 `ENABLE_EXPERIMENTAL_COREPACK=1`。对目标数据库执行 `pnpm db:migrate` 后再接入流量。构建使用 `pnpm build`。
+Vercel 使用 Next.js 框架预设。为项目关联私有 Blob 并启用 OIDC 和系统环境变量注入，应用将加密设置写入 Blob。手动配置目标环境的 `BETTER_AUTH_SECRET`，再用同一个密钥在本地执行 `pnpm setup:code`，打开部署地址的 `/setup` 完成初始化。预览环境按 Git 分支保存独立的设置。 [Vercel 私有 Blob 与 OIDC](https://vercel.com/changelog/vercel-private-blob-is-now-generally-available)
 
-[Vercel 的 Next.js 部署文档](https://vercel.com/docs/frameworks/full-stack/nextjs) · [Vercel 的包管理器配置](https://vercel.com/docs/package-managers)
+已有 Vercel 部署应用后续 SQL 迁移时，在已关联项目的终端使用具备私有 Blob 访问权限的环境凭据执行 `VERCEL=1 VERCEL_ENV=production pnpm db:migrate`。运行命令所用的 `BETTER_AUTH_SECRET` 须与生产环境一致。 [Vercel 的 Next.js 部署文档](https://vercel.com/docs/frameworks/full-stack/nextjs)

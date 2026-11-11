@@ -49,13 +49,39 @@ const recordInput = {
 };
 const recordRequired = ["vehicleId", "driverId", "date", "fuelType", "liters", "unitPrice", "odometer"];
 const cookie = { type: "apiKey", in: "cookie", "x-scalar-ignore": true };
+const boolean = { type: "boolean" };
+const systemSettings = {
+  authUrl: { ...string, description: "站点源地址，留空自动使用访问地址" },
+  username: { ...string, minLength: 1, maxLength: 128 },
+  timeZone: { ...string, description: "IANA 业务时区，如 Asia/Shanghai" },
+  baselineSamples: { ...integer, minimum: 2, maximum: 100, default: 5 },
+  anomalyMultiplier: { type: "number", minimum: 1, maximum: 100, default: 1.3 },
+};
+const systemSettingsInput = {
+  ...systemSettings,
+  databaseUrl: { ...string, format: "password", description: "PostgreSQL 连接串，留空保留已有连接" },
+  migrationDatabaseUrl: { ...string, format: "password", description: "可选的迁移直连，留空保留同一数据库的已有直连" },
+  clearMigrationDatabaseUrl: { ...boolean, description: "为 true 时移除迁移直连" },
+  password: { ...string, format: "password", description: "后台登录密码，留空保留现有密码" },
+};
+const settingsRequired = Object.keys(systemSettings);
+const systemSettingsView = {
+  ...systemSettings,
+  databaseUrlConfigured: boolean,
+  migrationDatabaseUrlConfigured: boolean,
+};
+const settingsSaved = object({ ...systemSettingsView, requireLogin: boolean });
+const settingsErrors = {
+  409: response("设置已更新或系统已初始化", { type: "null" }, 409),
+  503: response("当前部署尚未关联持久设置存储", { type: "null" }, 503),
+};
 
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "油量监控接口",
     version: "0.1.0",
-    description: "除登录外均使用同源的 HttpOnly 会话 Cookie。业务接口统一返回 code、data、message。",
+    description: "登录与首次初始化使用同源请求，其余接口使用 HttpOnly 会话 Cookie。接口统一返回 code、data、message。",
   },
   servers: [{ url: "/" }],
   security: [{ sessionCookie: [] }, { secureSessionCookie: [] }],
@@ -71,6 +97,28 @@ export const openApiDocument = {
     },
     "/api/logout": {
       post: { tags: ["会话"], summary: "退出登录", responses: replies({ type: "null" }) },
+    },
+    "/api/setup": {
+      post: {
+        tags: ["系统设置"], summary: "首次初始化",
+        description: "未初始化时可调用。使用 pnpm setup:code 生成的验证码，首次配置须提供数据库连接和后台账号密码。",
+        security: [],
+        requestBody: requestBody(object({
+          ...systemSettingsInput, setupSecret: { ...string, format: "password" },
+        }, [...settingsRequired, "databaseUrl", "password", "setupSecret"])),
+        responses: { ...replies(settingsSaved, 201), ...settingsErrors },
+      },
+    },
+    "/api/settings": {
+      get: {
+        tags: ["系统设置"], summary: "读取系统设置",
+        responses: replies(object(systemSettingsView)),
+      },
+      put: {
+        tags: ["系统设置"], summary: "保存系统设置",
+        requestBody: requestBody(object(systemSettingsInput, settingsRequired)),
+        responses: { ...replies(settingsSaved), ...settingsErrors },
+      },
     },
     "/api/fuel/options": {
       get: {

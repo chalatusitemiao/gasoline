@@ -12,30 +12,33 @@ import { account, session, user, verification } from "./db/schema";
 import { authorizeFuelAccount, fleetAccountId } from "./fuel-credentials";
 import { loginErrorMessage, loginSchema } from "./login-contract";
 import { loginPath, returnToHeader } from "./login-path";
+import { getSystemSettings, isSystemConfigured, withSystemSettings } from "./system-settings";
+import { getAuthSecret } from "./system-settings-store";
 
-export function getAuthOrigin() {
-  const url = process.env.BETTER_AUTH_URL;
-  if (!url) throw new Error("请设置 BETTER_AUTH_URL");
-
-  const parsed = new URL(url);
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("BETTER_AUTH_URL 必须是 HTTP 或 HTTPS 地址");
+export function getRequestOrigin(requestHeaders: Headers, requestUrl?: string) {
+  const url = requestUrl ? URL.parse(requestUrl) : null;
+  const host = requestHeaders.get("host") ?? url?.host;
+  const protocol = requestHeaders.get("x-forwarded-proto")
+    ?? url?.protocol.slice(0, -1)
+    ?? (process.env.VERCEL ? "https" : "http");
+  if (!host || /[\s,/?#@\\]/.test(host) || (protocol !== "http" && protocol !== "https")) {
+    return null;
   }
 
-  return parsed.origin;
+  return URL.parse(`${protocol}://${host}`)?.origin ?? null;
 }
 
-function createAuth() {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("请设置至少 32 个字符的 BETTER_AUTH_SECRET");
-  }
+export async function getAuthOrigin(requestHeaders: Headers, requestUrl?: string) {
+  const { authUrl } = await getSystemSettings();
+  return authUrl ? new URL(authUrl).origin : getRequestOrigin(requestHeaders, requestUrl);
+}
 
+function createAuth(origin: string, db: Awaited<ReturnType<typeof getDb>>) {
   return betterAuth({
     appName: "Gasoline",
-    baseURL: getAuthOrigin(),
-    secret,
-    database: drizzleAdapter(getDb(), {
+    baseURL: origin,
+    secret: getAuthSecret(),
+    database: drizzleAdapter(db, {
       provider: "pg",
       schema: { user, session, account, verification },
       transaction: true,
@@ -62,21 +65,44 @@ function createAuth() {
   });
 }
 
-let auth: ReturnType<typeof createAuth> | undefined;
+let auth: {
+  origin: string;
+  db: Awaited<ReturnType<typeof getDb>>;
+  instance: ReturnType<typeof createAuth>;
+} | undefined;
 
-export function getAuth() {
-  return (auth ??= createAuth());
+export async function getAuth(requestHeaders: Headers, requestUrl?: string) {
+  const origin = await getAuthOrigin(requestHeaders, requestUrl);
+  if (!origin) throw new Error("无法识别站点访问地址");
+  const db = await getDb();
+  if (!auth || auth.origin !== origin || auth.db !== db) {
+    auth = { origin, db, instance: createAuth(origin, db) };
+  }
+  return auth.instance;
 }
 
-export async function getRequestSession(requestHeaders: Headers) {
-  const result = await getAuth().api.getSession({ headers: requestHeaders });
+export async function getRequestSession(requestHeaders: Headers, requestUrl?: string) {
+  if (!isSystemConfigured(await getSystemSettings())) return null;
+  const instance = await getAuth(requestHeaders, requestUrl);
+  const result = await instance.api.getSession({ headers: requestHeaders });
   return result?.user.id === fleetAccountId ? result : null;
 }
 
-export const getSession = cache(async () => getRequestSession(await headers()));
+export const getPageSession = cache(async () => {
+  const requestHeaders = await headers();
+  return withSystemSettings(async () => {
+    const configured = isSystemConfigured(await getSystemSettings());
+    return { configured, session: configured ? await getRequestSession(requestHeaders) : null };
+  });
+});
+
+export async function getSession() {
+  return (await getPageSession()).session;
+}
 
 export async function requirePageSession() {
-  const result = await getSession();
-  if (!result) redirect(loginPath((await headers()).get(returnToHeader)));
-  return result;
+  const { configured, session } = await getPageSession();
+  if (!configured) redirect("/setup");
+  if (!session) redirect(loginPath((await headers()).get(returnToHeader)));
+  return session;
 }

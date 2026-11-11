@@ -1,6 +1,7 @@
 import "server-only";
 
-import { getAuthOrigin, getRequestSession } from "./auth";
+import { getAuthOrigin, getRequestOrigin, getRequestSession } from "./auth";
+import { withSystemSettings } from "./system-settings";
 
 export type ApiActor = { id: string; name: string };
 
@@ -22,18 +23,30 @@ export function authCookieHeaders(result: Response) {
   return headers;
 }
 
-export function unauthorizedResponse() {
+export function clearSessionCookieHeaders() {
   const headers = new Headers();
   const base = "=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax";
   headers.append("Set-Cookie", "better-auth.session_token" + base);
   headers.append("Set-Cookie", "__Secure-better-auth.session_token" + base + "; Secure");
-  return apiResponse(401, null, "请先登录", headers);
+  return headers;
 }
 
-export function requireSameOrigin(request: Request) {
-  if (request.headers.get("origin") !== getAuthOrigin()) {
+export function unauthorizedResponse() {
+  return apiResponse(401, null, "请先登录", clearSessionCookieHeaders());
+}
+
+function checkOrigin(request: Request, expected: string | null) {
+  if (!expected || request.headers.get("origin") !== expected) {
     throw new ApiError(403, "请求来源不受信任");
   }
+}
+
+export function requireRequestOrigin(request: Request) {
+  checkOrigin(request, getRequestOrigin(request.headers, request.url));
+}
+
+export async function requireSameOrigin(request: Request) {
+  checkOrigin(request, await getAuthOrigin(request.headers, request.url));
 }
 
 export function apiFailure(error: unknown) {
@@ -47,13 +60,15 @@ export async function apiRoute<T>(
   handle: (actor: ApiActor) => Promise<T>,
   options: { status?: number } = {},
 ) {
-  try {
-    const session = await getRequestSession(request.headers);
-    if (!session) return unauthorizedResponse();
-    if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) requireSameOrigin(request);
-    const result = await handle({ id: session.user.id, name: session.user.name });
-    return result instanceof Response ? result : apiResponse(options.status ?? 200, result, "操作成功");
-  } catch (error) {
-    return apiFailure(error);
-  }
+  return withSystemSettings(async () => {
+    try {
+      const session = await getRequestSession(request.headers, request.url);
+      if (!session) return unauthorizedResponse();
+      if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) await requireSameOrigin(request);
+      const result = await handle({ id: session.user.id, name: session.user.name });
+      return result instanceof Response ? result : apiResponse(options.status ?? 200, result, "操作成功");
+    } catch (error) {
+      return apiFailure(error);
+    }
+  });
 }

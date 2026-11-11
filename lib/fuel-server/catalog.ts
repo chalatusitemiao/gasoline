@@ -112,13 +112,15 @@ export async function getFuelOptions(): Promise<FuelOptions> {
 }
 
 export async function getVehicle(id: string): Promise<Vehicle> {
-  const [row] = await getDb().select(vehicleFields).from(vehicles).where(eq(vehicles.id, id)).limit(1);
+  const db = await getDb();
+  const [row] = await db.select(vehicleFields).from(vehicles).where(eq(vehicles.id, id)).limit(1);
   if (!row) throw new ApiError(404, "车辆不存在");
   return dates(row);
 }
 
 export async function getDriver(id: string): Promise<Driver> {
-  const [row] = await getDb().select(driverFields).from(drivers).where(eq(drivers.id, id)).limit(1);
+  const db = await getDb();
+  const [row] = await db.select(driverFields).from(drivers).where(eq(drivers.id, id)).limit(1);
   if (!row) throw new ApiError(404, "司机不存在");
   return dates(row);
 }

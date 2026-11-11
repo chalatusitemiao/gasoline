@@ -84,7 +84,8 @@ export async function getFuelAnalytics(
   const isDashboard = view === "dashboard";
   const rankingFrom = isDashboard ? currentMonth : from;
 
-  return getDb().transaction(async (tx) => {
+  const db = await getDb();
+  return db.transaction(async (tx) => {
     const vehicleMonthRows = await tx
       .select({ vehicleId: vehicles.id, plate: vehicles.plate, month: monthKey, ...rawMetrics })
       .from(fuelRecords)
