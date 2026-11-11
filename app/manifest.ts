@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "车辆监控",
     short_name: "车辆监控",
-    description: "车队加油台账、油耗分析和成本报表",
+    description: "加油台账、油耗分析和成本报表",
     lang: "zh-CN",
     start_url: "/dashboard",
     scope: "/",

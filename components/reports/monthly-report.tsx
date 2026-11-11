@@ -101,7 +101,7 @@ function DriverReport({ report }: { report: FuelAnalytics }) {
   return (
     <>
       <MetricCards metrics={[
-        { label: "车队均值", value: total.consumption, unit: "L/100km", trend: trend("consumption"), tone: "teal" },
+        { label: "均值", value: total.consumption, unit: "L/100km", trend: trend("consumption"), tone: "teal" },
         { label: "参与司机", value: drivers.length, unit: "人" },
         {
           label: "最低油耗司机",

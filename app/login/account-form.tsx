@@ -54,7 +54,7 @@ export function AccountForm(props: AccountFormProps) {
     <ProLoginForm<AccountFields>
       logo={<BrandMark size={44} />}
       title={<span id="account-title" role="heading" aria-level={1}>车辆监控</span>}
-      subTitle="车队用油管理后台"
+      subTitle="用油管理后台"
       contentStyle={{ minWidth: "min(280px, 100%)", maxWidth: "min(75vw, 100%)" }}
       otherStyle={{ textAlign: "center" }}
       actions={alternateLink}

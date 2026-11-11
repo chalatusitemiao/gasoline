@@ -27,7 +27,7 @@ function VehicleMonthCell({
       <span>{formatNumber(value.liters)} L</span>
       <small
         className={aboveFleet ? styles.flag : undefined}
-        title={aboveFleet ? "高于同期车队均值 20%" : undefined}
+        title={aboveFleet ? "高于同期均值 20%" : undefined}
       >
         {value.consumption == null ? "—" : `${formatNumber(value.consumption)} L/100km`}
       </small>
@@ -78,7 +78,7 @@ export function VehicleMonthTable({ report }: { report: FuelAnalytics }) {
       locale={{ emptyText: "暂无车辆档案" }}
       summary={() => (
         <Table.Summary.Row className={styles.summary}>
-          <Table.Summary.Cell index={0}>车队合计</Table.Summary.Cell>
+          <Table.Summary.Cell index={0}>合计</Table.Summary.Cell>
           {months.map((month, index) => (
             <Table.Summary.Cell index={index + 1} key={month} align="right">
               <VehicleMonthCell value={fleetByMonth.get(month)} />
@@ -101,7 +101,7 @@ const driverColumns: ProColumns<RankedDriver>[] = [
   { title: "总金额（元）", width: 120, align: "right", render: (_, row) => formatNumber(row.amount, true) },
   { title: "总里程（km）", width: 120, align: "right", render: (_, row) => formatNumber(row.distance) },
   { title: "油耗（L/100km）", width: 136, align: "right", render: (_, row) => formatNumber(row.consumption) },
-  { title: "较车队均值", width: 114, align: "right", render: (_, row) => row.deviation == null ? "—" : signedPercent(row.deviation) },
+  { title: "较均值", width: 114, align: "right", render: (_, row) => row.deviation == null ? "—" : signedPercent(row.deviation) },
   { title: "异常次数", dataIndex: "anomalies", width: 86, align: "right" },
   { title: "常用车辆", width: 200, ellipsis: true, render: (_, row) => row.usualVehicles.join("、") || "—" },
 ];

@@ -32,7 +32,7 @@ export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: Fu
         ...fuelCells(vehicle),
       ]),
       [
-        "车队合计",
+        "合计",
         ...months.flatMap((month) => fuelCells(fleetMonths.get(month))),
         ...fuelCells(report.total),
       ],
@@ -41,7 +41,7 @@ export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: Fu
 
   if (view === "drivers") {
     return [
-      ["排名", "司机", "加油次数", "总油量（L）", "总金额（元）", "总里程（km）", "油耗（L/100km）", "较车队均值（%）", "异常次数", "常用车辆"],
+      ["排名", "司机", "加油次数", "总油量（L）", "总金额（元）", "总里程（km）", "油耗（L/100km）", "较均值（%）", "异常次数", "常用车辆"],
       ...rankDrivers(report).map((driver) => [
         driver.rank,
         driver.name,
@@ -70,7 +70,7 @@ export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: Fu
       twoPlaces(vehicle.share),
     ]),
     [
-      "车队合计",
+      "合计",
       report.total.count,
       report.total.liters,
       report.total.amount,

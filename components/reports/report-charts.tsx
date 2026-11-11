@@ -251,7 +251,7 @@ function RankingChart({
                 markLine: fleet == null ? undefined : {
                   symbol: ["none", "none"],
                   data: [{ xAxis: fleet }],
-                  label: { formatter: `车队均值 ${formatNumber(fleet)}`, position: "insideEndTop", color: teal },
+                  label: { formatter: `均值 ${formatNumber(fleet)}`, position: "insideEndTop", color: teal },
                   lineStyle: { type: "dashed", color: teal, width: 1.5 },
                 },
               }],
@@ -346,7 +346,6 @@ export function CostShare({
                 subtext: `${definition.name}合计`,
                 left: "center",
                 top: "center",
-                textAlign: "center",
                 textStyle: { color: "#1f1f1f", fontSize: 17, fontWeight: 600 },
                 subtextStyle: { color: "#595959", fontSize: 12 },
                 itemGap: 4,
