@@ -21,9 +21,9 @@ import {
 } from "@ant-design/icons";
 import { ProLayout, type ProLayoutProps } from "@ant-design/pro-components";
 import { App, Avatar, Button, Dropdown } from "antd";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { apiFetch } from "@/lib/api-client";
 import styles from "./admin.module.css";
@@ -91,6 +91,20 @@ const layoutSettings = {
   ],
 } satisfies ProLayoutProps;
 
+function NavigationIndicator() {
+  const { pending } = useLinkStatus();
+  return pending ? <span className={styles.navigationIndicator} aria-hidden="true" /> : null;
+}
+
+function NavigationLink({ children, ...props }: ComponentProps<typeof Link>) {
+  return (
+    <Link {...props}>
+      {children}
+      <NavigationIndicator />
+    </Link>
+  );
+}
+
 export function AdminShell({
   children,
   name,
@@ -131,10 +145,10 @@ export function AdminShell({
       contentStyle={{ padding: 0, minWidth: 0 }}
       menu={{ locale: false }}
       headerTitleRender={(logo, title) => (
-        <Link href="/dashboard" className={styles.brand} aria-label="油量监控首页">
+        <NavigationLink href="/dashboard" className={styles.brand} aria-label="油量监控首页">
           {logo}
           {title}
-        </Link>
+        </NavigationLink>
       )}
       token={{
         pageContainer: {
@@ -143,7 +157,7 @@ export function AdminShell({
         },
       }}
       breadcrumbRender={() => page && currentPath !== "/dashboard" ? [
-        { key: "dashboard", title: <Link href="/dashboard">经营看板</Link> },
+        { key: "dashboard", title: <NavigationLink href="/dashboard">经营看板</NavigationLink> },
         ...(section ? [{ key: section.path, title: section.name }] : []),
         { key: currentPath, title: <span aria-current="page">{page.name}</span> },
       ] : []}
@@ -151,20 +165,20 @@ export function AdminShell({
       menuItemRender={(item, defaultDom, menuProps) =>
         item.path && !item.children?.length
           ? (
-            <Link
+            <NavigationLink
               href={item.path}
               aria-current={item.path === currentPath ? "page" : undefined}
               onClick={menuProps.isMobile ? item.onClick : undefined}
             >
               {defaultDom}
-            </Link>
+            </NavigationLink>
           )
           : defaultDom
       }
       actionsRender={() => [
-        <Link key="docs" href="/docs" className={styles.headerAction} aria-label="接口文档" title="接口文档">
+        <NavigationLink key="docs" href="/docs" className={styles.headerAction} aria-label="接口文档" title="接口文档">
           <BookOutlined />
-        </Link>,
+        </NavigationLink>,
       ]}
       avatarProps={{
         render: () => (

@@ -59,9 +59,10 @@ const systemSettings = {
 };
 const systemSettingsInput = {
   ...systemSettings,
+  authUrl: { ...string, description: "省略时保留已有值，传空字符串时使用当前访问地址" },
   password: { ...string, format: "password", description: "后台登录密码，留空保留现有密码" },
 };
-const settingsRequired = Object.keys(systemSettings);
+const settingsRequired = ["username", "timeZone", "baselineSamples", "anomalyMultiplier"];
 const settingsSaved = object({ ...systemSettings, requireLogin: boolean });
 const credentials = {
   username: systemSettings.username,

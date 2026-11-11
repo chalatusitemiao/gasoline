@@ -18,7 +18,9 @@ function validUrl(value: string, protocols: string[]) {
 
 export const settingsInput = z.object({
   authUrl: z.string().trim().max(2048)
-    .refine((value) => validUrl(value, ["http:", "https:"]), "站点地址必须是 HTTP 或 HTTPS 地址"),
+    .refine((value) => validUrl(value, ["http:", "https:"]), "站点地址必须是 HTTP 或 HTTPS 地址")
+    .transform((value) => value ? new URL(value).origin : "")
+    .optional(),
   username: usernameSchema,
   password: z.string().max(1024).optional(),
   timeZone: z.string().trim().max(128).refine(isBusinessTimeZone, "请选择有效的业务时区"),
@@ -44,7 +46,7 @@ export async function saveSystemSettings(
   if (!input.password && !current.passwordHash) throw new ApiError(400, "请设置后台登录密码");
 
   const settings: SystemSettings = {
-    authUrl: input.authUrl ? new URL(input.authUrl).origin : "",
+    authUrl: input.authUrl ?? current.authUrl,
     username: input.username,
     passwordHash: input.password ? await hashSettingsPassword(input.password) : current.passwordHash,
     timeZone: input.timeZone,

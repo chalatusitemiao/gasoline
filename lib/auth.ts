@@ -47,6 +47,7 @@ function createAuth(origin: string, db: Awaited<ReturnType<typeof getDb>>) {
       schema: { user, session, account, verification },
       transaction: true,
     }),
+    advanced: { database: { joins: true } },
     session: { expiresIn: 12 * 60 * 60, disableSessionRefresh: true },
     plugins: [{
       id: "gasoline-single-account",

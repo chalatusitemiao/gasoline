@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
-function createDatabase(connectionString: string) {
+function createPool(connectionString: string) {
   const pool = new Pool({
     connectionString,
     max: 5,
@@ -17,11 +17,17 @@ function createDatabase(connectionString: string) {
     console.error("PostgreSQL 空闲连接异常");
   });
 
+  return pool;
+}
+
+function createDatabase(pool: Pool) {
   return drizzle(pool, { schema });
 }
 
+let database: { pool: Pool; db: ReturnType<typeof createDatabase> } | undefined;
+
 const globals = globalThis as typeof globalThis & {
-  gasolineDatabase?: { url: string; db: ReturnType<typeof createDatabase> };
+  gasolinePool?: { url: string; pool: Pool };
 };
 
 export function getDatabaseUrl() {
@@ -31,10 +37,14 @@ export function getDatabaseUrl() {
 export async function getDb() {
   const databaseUrl = getDatabaseUrl();
   if (!databaseUrl) throw new Error("请配置 DATABASE_URL 环境变量");
-  if (!globals.gasolineDatabase || globals.gasolineDatabase.url !== databaseUrl) {
+  if (!globals.gasolinePool || globals.gasolinePool.url !== databaseUrl) {
     // 旧连接池的空闲连接会自动回收，在途事务可以继续完成。
-    globals.gasolineDatabase = { url: databaseUrl, db: createDatabase(databaseUrl) };
+    globals.gasolinePool = { url: databaseUrl, pool: createPool(databaseUrl) };
   }
 
-  return globals.gasolineDatabase.db;
+  const { pool } = globals.gasolinePool;
+  if (!database || database.pool !== pool) {
+    database = { pool, db: createDatabase(pool) };
+  }
+  return database.db;
 }

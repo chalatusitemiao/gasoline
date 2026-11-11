@@ -16,7 +16,7 @@ type Settings = {
   anomalyMultiplier: number;
 };
 
-type SettingsValues = Settings & {
+type SettingsValues = Omit<Settings, "authUrl"> & {
   password?: string;
 };
 
@@ -103,8 +103,10 @@ function SystemSettingsForm({
 
     try {
       const payload = {
-        ...values,
-        authUrl: values.authUrl?.trim() ?? "",
+        username: values.username,
+        timeZone: values.timeZone,
+        baselineSamples: values.baselineSamples,
+        anomalyMultiplier: values.anomalyMultiplier,
         password: values.password || undefined,
       };
 
@@ -115,7 +117,6 @@ function SystemSettingsForm({
       }
 
       form.setFieldsValue({
-        authUrl: updated.authUrl,
         username: updated.username,
         timeZone: updated.timeZone,
         baselineSamples: updated.baselineSamples,
@@ -141,28 +142,6 @@ function SystemSettingsForm({
       initialValues={settings}
       onFinish={save}
     >
-      <Card title="站点配置">
-        <Form.Item
-          name="authUrl"
-          label="站点地址"
-          extra="留空时自动使用访问地址。"
-          rules={[{
-            validator: async (_, value: string | undefined) => {
-              if (!value?.trim()) return;
-              try {
-                const url = new URL(value.trim());
-                if (url.protocol === "https:" || url.protocol === "http:") return;
-              } catch {
-                throw new Error("请输入有效的 HTTP 或 HTTPS 地址");
-              }
-              throw new Error("请输入有效的 HTTP 或 HTTPS 地址");
-            },
-          }]}
-        >
-          <Input placeholder="例如 https://fuel.example.com" />
-        </Form.Item>
-      </Card>
-
       <Card title="后台账号">
         <div className={styles.fields}>
           <Form.Item

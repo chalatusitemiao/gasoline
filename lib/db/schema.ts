@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export * from "./fuel-schema";
@@ -29,6 +30,10 @@ export const session = pgTable("sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index("sessions_user_id_idx").on(table.userId)]);
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  user: one(user, { fields: [session.userId], references: [user.id] }),
+}));
 
 export const account = pgTable("accounts", {
   id: text("id").primaryKey(),

@@ -49,3 +49,42 @@
   margin-inline: auto;
   padding-inline: clamp(16px, 3.08vw, 40px);
 }
+
+.navigationIndicator {
+  position: fixed;
+  z-index: 1100;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: min(32vw, 240px);
+  block-size: 3px;
+  background: var(--app-primary);
+  pointer-events: none;
+  opacity: 0;
+  animation: reveal-navigation-indicator 120ms step-end forwards;
+}
+
+@keyframes reveal-navigation-indicator {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigationIndicator {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.routeLoading {
+  padding-block: 32px;
+  color: var(--app-text-secondary);
+}
+
+.routeSkeleton {
+  block-size: 160px;
+  margin-block-start: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
