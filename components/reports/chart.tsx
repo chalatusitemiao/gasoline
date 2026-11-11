@@ -7,11 +7,13 @@ import {
   GridComponent,
   LegendComponent,
   MarkLineComponent,
+  TitleComponent,
   TooltipComponent,
 } from "echarts/components";
 import { init, use as registerECharts, type EChartsType } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import styles from "./reports.module.css";
 
 registerECharts([
   BarChart,
@@ -20,6 +22,7 @@ registerECharts([
   GridComponent,
   LegendComponent,
   MarkLineComponent,
+  TitleComponent,
   TooltipComponent,
   AriaComponent,
   CanvasRenderer,
@@ -53,8 +56,13 @@ export default function Chart({
   }, []);
 
   useEffect(() => {
-    chart.current?.setOption(option, { notMerge: true });
-  }, [option]);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    chart.current?.setOption({
+      ...option,
+      ...(reduceMotion ? { animation: false } : {}),
+      aria: { enabled: true, label: { description: label } },
+    }, { notMerge: true });
+  }, [label, option]);
 
-  return <div ref={element} style={{ height }} aria-label={label} />;
+  return <div ref={element} className={styles.chartCanvas} style={{ height, minWidth: 0 }} role="img" aria-label={label} />;
 }
