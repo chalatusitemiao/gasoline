@@ -100,10 +100,14 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
 export const getPageSession = cache(async () => {
   const requestHeaders = await headers();
   return withSystemSettings(async () => {
-    if (!getDatabaseUrl()) return { registrationEnabled: false, session: null };
+    if (!getDatabaseUrl()) {
+      return { registrationUnavailable: "数据库尚未配置，请联系管理员。", session: null };
+    }
     const hasAccount = hasFleetAccount(await getSystemSettings());
     return {
-      registrationEnabled: !hasAccount && Boolean(getRegistrationKey()),
+      registrationUnavailable: hasAccount
+        ? "系统已有后台账号，请直接登录。"
+        : getRegistrationKey() ? null : "当前环境未启用注册，请联系管理员。",
       session: hasAccount ? await getRequestSession(requestHeaders) : null,
     };
   });

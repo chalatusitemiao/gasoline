@@ -79,8 +79,12 @@ export async function readLegacyStoredSettings(): Promise<SystemSettings | null>
   return result?.stream ? decrypt(await new Response(result.stream).text()) : null;
 }
 
-export async function writeStoredSettings(settings: SystemSettings, revision: string | null) {
-  const db = await getDb();
+export async function writeStoredSettings(
+  settings: SystemSettings,
+  revision: string | null,
+  transaction?: Pick<Awaited<ReturnType<typeof getDb>>, "insert" | "update">,
+) {
+  const db = transaction ?? await getDb();
   const values = { encrypted: encrypt(settings), revision: randomUUID() };
   if (revision === null) {
     const [inserted] = await db.insert(systemSettingsTable).values({ id: settingsId, ...values })

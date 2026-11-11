@@ -25,6 +25,22 @@ export function matchesRegistrationKey(input: string) {
   return Boolean(expected && matches(input, expected));
 }
 
+export async function upsertFleetUser(
+  tx: Pick<Awaited<ReturnType<typeof getDb>>, "insert">,
+  username: string,
+) {
+  const [accountUser] = await tx.insert(user).values({
+    id: fleetAccountId,
+    name: username,
+    email: "gasoline-single-account@localhost.invalid",
+  }).onConflictDoUpdate({
+    target: user.id,
+    set: { name: username, updatedAt: new Date() },
+  }).returning();
+
+  return accountUser;
+}
+
 export async function authorizeFuelAccount(username: string, password: string) {
   const { username: expectedUsername, passwordHash } = await getSystemSettings();
   if (!expectedUsername || !passwordHash) throw new Error("未配置油量监控账号");
@@ -51,15 +67,6 @@ export async function authorizeFuelAccount(username: string, password: string) {
     await tx.update(loginAttempts).set({ failures: 0, lockedUntil: null })
       .where(eq(loginAttempts.id, fleetAccountId));
 
-    const [accountUser] = await tx.insert(user).values({
-      id: fleetAccountId,
-      name: expectedUsername,
-      email: "gasoline-single-account@localhost.invalid",
-    }).onConflictDoUpdate({
-      target: user.id,
-      set: { name: expectedUsername, updatedAt: new Date(now) },
-    }).returning();
-
-    return accountUser;
+    return upsertFleetUser(tx, expectedUsername);
   });
 }

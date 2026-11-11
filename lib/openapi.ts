@@ -97,7 +97,7 @@ export const openApiDocument = {
     "/api/register": {
       post: {
         tags: ["会话"], summary: "注册后台账号",
-        description: "尚无后台账号时，使用部署环境的 REGISTRATION_KEY 注册。成功后尝试建立登录会话。",
+        description: "尚无后台账号时，使用部署环境的 REGISTRATION_KEY 注册。用户记录和系统配置在同一笔数据库事务中保存。提交后尝试建立登录会话，自动登录失败时可手动登录。",
         security: [],
         requestBody: requestBody(object({
           ...credentials,

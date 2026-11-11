@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getAuth } from "@/lib/auth";
-import { getDatabaseUrl } from "@/lib/db";
-import { getRegistrationKey, matchesRegistrationKey } from "@/lib/fuel-credentials";
+import { getDatabaseUrl, getDb } from "@/lib/db";
+import { getRegistrationKey, matchesRegistrationKey, upsertFleetUser } from "@/lib/fuel-credentials";
 import { body } from "@/lib/fuel-server/shared";
 import { loginSchema } from "@/lib/login-contract";
 import { apiFailure, ApiError, apiResponse, authCookieHeaders, requireSameOrigin } from "@/lib/server-api";
@@ -14,7 +14,7 @@ const registrationSchema = loginSchema.extend({
 
 export async function POST(request: Request) {
   try {
-    const { auth, credentials } = await withSystemSettings(async () => {
+    const credentials = await withSystemSettings(async () => {
       if (!getDatabaseUrl()) throw new ApiError(503, "数据库连接尚未配置");
       if (!getRegistrationKey()) throw new ApiError(503, "当前环境未启用账号注册");
 
@@ -25,18 +25,24 @@ export async function POST(request: Request) {
       const { settings, revision } = await getSystemSettingsSnapshot();
       if (hasFleetAccount(settings)) throw new ApiError(409, "后台账号已注册，请登录");
 
-      const auth = await getAuth(request.headers, request.url);
       const passwordHash = await hashSettingsPassword(password);
-      await writeStoredSettings({ ...settings, username, passwordHash }, revision);
-      return { auth, credentials: { username, password } };
+      const db = await getDb();
+      await db.transaction(async (tx) => {
+        await writeStoredSettings({ ...settings, username, passwordHash }, revision, tx);
+        await upsertFleetUser(tx, username);
+      });
+      return { username, password };
     });
 
-    // Read the saved credentials in a fresh request scope.
-    const login = await withSystemSettings(() => auth.api.loginFuelAccount({
-      headers: request.headers,
-      body: credentials,
-      asResponse: true,
-    })).catch(() => {
+    // 重新读取系统配置，让自动登录使用刚提交的账号凭据。
+    const login = await withSystemSettings(async () => {
+      const auth = await getAuth(request.headers, request.url);
+      return auth.api.loginFuelAccount({
+        headers: request.headers,
+        body: credentials,
+        asResponse: true,
+      });
+    }).catch(() => {
       console.error("注册后的自动登录失败");
       return null;
     });

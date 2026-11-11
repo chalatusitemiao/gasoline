@@ -15,7 +15,7 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
   const next = safeReturnTo((await searchParams).next);
-  const { registrationEnabled, session } = await getPageSession();
+  const { session } = await getPageSession();
 
   if (session) {
     redirect(next);
@@ -24,7 +24,7 @@ export default async function LoginPage({
   return (
     <main className={styles.screen} aria-labelledby="account-title">
       <div className={styles.content}>
-        <AccountForm mode="login" next={next} registrationEnabled={registrationEnabled} />
+        <AccountForm mode="login" next={next} />
       </div>
     </main>
   );
