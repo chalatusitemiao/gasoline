@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getAuth } from "@/lib/auth";
 import { getDatabaseUrl } from "@/lib/db";
 import { getRegistrationKey, matchesRegistrationKey } from "@/lib/fuel-credentials";
@@ -6,7 +7,6 @@ import { loginSchema } from "@/lib/login-contract";
 import { apiFailure, ApiError, apiResponse, authCookieHeaders, requireSameOrigin } from "@/lib/server-api";
 import { getSystemSettingsSnapshot, hasFleetAccount, hashSettingsPassword, withSystemSettings } from "@/lib/system-settings";
 import { SettingsConflictError, writeStoredSettings } from "@/lib/system-settings-store";
-import { z } from "zod";
 
 const registrationSchema = loginSchema.extend({
   registrationKey: z.string().trim().min(1, "请输入注册密钥").max(1024),

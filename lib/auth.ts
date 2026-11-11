@@ -15,7 +15,7 @@ import { loginPath, returnToHeader } from "./login-path";
 import { getSystemSettings, hasFleetAccount, withSystemSettings } from "./system-settings";
 import { getAuthSecret } from "./system-settings-store";
 
-export function getRequestOrigin(requestHeaders: Headers, requestUrl?: string) {
+function getRequestOrigin(requestHeaders: Headers, requestUrl?: string) {
   const url = requestUrl ? URL.parse(requestUrl) : null;
   const host = requestHeaders.get("host") ?? url?.host;
   const protocol = requestHeaders.get("x-forwarded-proto")

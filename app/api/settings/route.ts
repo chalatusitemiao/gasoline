@@ -12,6 +12,6 @@ export function PUT(request: Request) {
     const input = await body(request, settingsInput);
     const { settings, revision } = await getSystemSettingsSnapshot();
     const result = await saveSystemSettings(input, settings, revision);
-    return apiResponse(200, result, "系统设置已保存", result.requireLogin ? clearSessionCookieHeaders() : undefined);
+    return apiResponse(200, result, "系统配置已保存", result.requireLogin ? clearSessionCookieHeaders() : undefined);
   });
 }

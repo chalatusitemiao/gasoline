@@ -44,9 +44,8 @@ export function AccountForm(props: AccountFormProps) {
       }
       window.location.replace(props.next);
     } catch (error) {
-      setErrorMessage(isRegistration
-        ? error instanceof ApiClientError ? error.message : "注册失败，请稍后重试"
-        : loginErrorMessage);
+      const fallback = isRegistration ? "注册失败，请稍后重试" : loginErrorMessage;
+      setErrorMessage(error instanceof ApiClientError ? error.message : fallback);
     }
   }
 
@@ -74,6 +73,7 @@ export function AccountForm(props: AccountFormProps) {
         fieldProps={{
           "aria-label": "账号",
           autoComplete: "username",
+          maxLength: 128,
           size: "large",
           prefix: <UserOutlined />,
         }}
@@ -84,6 +84,7 @@ export function AccountForm(props: AccountFormProps) {
         fieldProps={{
           "aria-label": "密码",
           autoComplete: isRegistration ? "new-password" : "current-password",
+          maxLength: 1024,
           size: "large",
           prefix: <LockOutlined />,
         }}

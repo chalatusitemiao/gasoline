@@ -12,32 +12,29 @@ cp .env.example .env.local
 openssl rand -base64 32
 ```
 
-将随机字符串填入 `.env.local` 的 `BETTER_AUTH_SECRET`，然后生成初始化验证码并启动应用。
+在 `.env.local` 填写 `DATABASE_URL` 和 `BETTER_AUTH_SECRET`。另用 `openssl rand -hex 32` 生成 `REGISTRATION_KEY`，用于首次注册后台账号。
 
 ```sh
-pnpm setup:code
+pnpm db:migrate
 pnpm dev
 ```
 
-打开 [初始化页面](http://localhost:3000/setup)，填写验证码、数据库连接和后台账号密码。应用会执行数据库迁移，完成后使用刚设置的账号登录。
+打开 [登录页](http://localhost:3000/login)，选择「注册账号」，填写用户名、密码和注册密钥。系统保留一个车队后台账号，注册成功后进入经营看板。已有账号可直接登录。
 
-## 系统设置
+## 系统配置
 
-登录后打开「系统设置」修改以下项目。
+登录后从侧栏打开「系统配置」修改以下项目。
 
 | 设置 | 用途 |
 | --- | --- |
 | 站点地址 | 留空时自动使用当前访问的协议、域名和端口。 |
-| PostgreSQL 连接串和迁移直连 | 应用可使用连接池地址。填写直连时，应与应用连接指向同一个数据库。更换应用连接会对新库执行迁移，旧库数据需单独迁移。 |
 | 后台账号 | 可修改用户名和密码，密码留空时保留当前值。 |
 | 业务时区 | 可识别设备时区，也可搜索选择。用于业务日期、报表当前月和删除日志保留期限，默认 `Asia/Shanghai`。 |
 | 油耗基线样本数和异常倍数 | 默认 `5` 和 `1.3`。修改后在下一次重算相关车辆时生效。 |
 
-设置加密保存在项目的 `.gasoline/settings.enc` 中，自托管部署需要持久保留 `.gasoline/` 目录和对应的 `BETTER_AUTH_SECRET`。账号密码以加盐哈希保存。
+配置加密保存在 PostgreSQL 中，账号密码以加盐哈希保存。升级时请保留原有 `BETTER_AUTH_SECRET` 和旧配置来源。系统会继续读取旧版的私有 Blob、本地配置文件或原环境变量。登录后保存一次「系统配置」，即可将现有值写入 PostgreSQL。
 
-已有部署可以用旧环境变量继续登录。在「系统设置」保存一次后，配置会写入新存储，随后可以移除旧的数据库、站点、登录和业务环境变量。保留原有 `BETTER_AUTH_SECRET`。
-
-运行 `pnpm db:migrate` 会从已保存的设置读取数据库连接并应用新增迁移。修改 Drizzle 表结构后，可用 `pnpm db:generate` 生成后续迁移。
+应用从 `DATABASE_URL` 读取数据库连接。`pnpm db:migrate` 优先使用可选的 `DATABASE_URL_UNPOOLED`，否则使用 `DATABASE_URL`。两个地址需要指向同一个数据库。修改 Drizzle 表结构后，可用 `pnpm db:generate` 生成后续迁移。
 
 ## 台账口径
 
@@ -56,6 +53,6 @@ pnpm dev
 
 登录后访问 `/docs` 使用 Scalar 查看和调试业务接口。OpenAPI JSON 位于 `/api/openapi`。业务响应统一使用 `{code,data,message}`，成功时 `code` 为 `0`。会话 12 小时固定有效，连续 5 次凭据错误锁定 5 分钟。
 
-Vercel 使用 Next.js 框架预设。为项目关联私有 Blob 并启用 OIDC 和系统环境变量注入，应用将加密设置写入 Blob。手动配置目标环境的 `BETTER_AUTH_SECRET`，再用同一个密钥在本地执行 `pnpm setup:code`，打开部署地址的 `/setup` 完成初始化。预览环境按 Git 分支保存独立的设置。 [Vercel 私有 Blob 与 OIDC](https://vercel.com/changelog/vercel-private-blob-is-now-generally-available)
+Vercel 使用 Next.js 框架预设。为目标环境配置 `DATABASE_URL`、`BETTER_AUTH_SECRET` 和首次注册所需的 `REGISTRATION_KEY`。需要用直连执行迁移时，配置 `DATABASE_URL_UNPOOLED`。生产和预览可通过各自的数据库连接隔离数据和系统配置。 [Vercel 环境变量文档](https://vercel.com/docs/environment-variables)
 
-已有 Vercel 部署应用后续 SQL 迁移时，在已关联项目的终端使用具备私有 Blob 访问权限的环境凭据执行 `VERCEL=1 VERCEL_ENV=production pnpm db:migrate`。运行命令所用的 `BETTER_AUTH_SECRET` 须与生产环境一致。 [Vercel 的 Next.js 部署文档](https://vercel.com/docs/frameworks/full-stack/nextjs)
+每次 Vercel 部署构建成功后，`vercel.json` 会自动执行 `pnpm db:migrate`。迁移使用目标环境的数据库连接，遇到错误时中止发布。 [Vercel 构建命令文档](https://vercel.com/docs/builds/configure-a-build)

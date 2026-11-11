@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { usernameSchema } from "./login-contract";
 import { ApiError } from "./server-api";
 import { hashSettingsPassword, isBusinessTimeZone, type SystemSettings } from "./system-settings";
 import { SettingsConflictError, writeStoredSettings } from "./system-settings-store";
@@ -18,7 +19,7 @@ function validUrl(value: string, protocols: string[]) {
 export const settingsInput = z.object({
   authUrl: z.string().trim().max(2048)
     .refine((value) => validUrl(value, ["http:", "https:"]), "站点地址必须是 HTTP 或 HTTPS 地址"),
-  username: z.string().trim().min(1, "请填写后台用户名").max(128),
+  username: usernameSchema,
   password: z.string().max(1024).optional(),
   timeZone: z.string().trim().max(128).refine(isBusinessTimeZone, "请选择有效的业务时区"),
   baselineSamples: z.number().int().min(2).max(100),
@@ -55,7 +56,7 @@ export async function saveSystemSettings(
     await writeStoredSettings(settings, revision);
   } catch (error) {
     if (error instanceof SettingsConflictError) {
-      throw new ApiError(409, "系统设置已发生变化，请刷新后重试");
+      throw new ApiError(409, "系统配置已发生变化，请刷新后重试");
     }
     throw error;
   }

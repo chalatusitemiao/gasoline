@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getAuthOrigin, getRequestOrigin, getRequestSession } from "./auth";
+import { getAuthOrigin, getRequestSession } from "./auth";
 import { withSystemSettings } from "./system-settings";
 
 export type ApiActor = { id: string; name: string };
@@ -39,10 +39,6 @@ function checkOrigin(request: Request, expected: string | null) {
   if (!expected || request.headers.get("origin") !== expected) {
     throw new ApiError(403, "请求来源不受信任");
   }
-}
-
-export function requireRequestOrigin(request: Request) {
-  checkOrigin(request, getRequestOrigin(request.headers, request.url));
 }
 
 export async function requireSameOrigin(request: Request) {

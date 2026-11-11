@@ -59,21 +59,13 @@ const systemSettings = {
 };
 const systemSettingsInput = {
   ...systemSettings,
-  databaseUrl: { ...string, format: "password", description: "PostgreSQL 连接串，留空保留已有连接" },
-  migrationDatabaseUrl: { ...string, format: "password", description: "可选的迁移直连，留空保留同一数据库的已有直连" },
-  clearMigrationDatabaseUrl: { ...boolean, description: "为 true 时移除迁移直连" },
   password: { ...string, format: "password", description: "后台登录密码，留空保留现有密码" },
 };
 const settingsRequired = Object.keys(systemSettings);
-const systemSettingsView = {
-  ...systemSettings,
-  databaseUrlConfigured: boolean,
-  migrationDatabaseUrlConfigured: boolean,
-};
-const settingsSaved = object({ ...systemSettingsView, requireLogin: boolean });
-const settingsErrors = {
-  409: response("设置已更新或系统已初始化", { type: "null" }, 409),
-  503: response("当前部署尚未关联持久设置存储", { type: "null" }, 503),
+const settingsSaved = object({ ...systemSettings, requireLogin: boolean });
+const credentials = {
+  username: systemSettings.username,
+  password: { ...string, format: "password", minLength: 1, maxLength: 1024, writeOnly: true },
 };
 
 export const openApiDocument = {
@@ -81,7 +73,7 @@ export const openApiDocument = {
   info: {
     title: "油量监控接口",
     version: "0.1.0",
-    description: "登录与首次初始化使用同源请求，其余接口使用 HttpOnly 会话 Cookie。接口统一返回 code、data、message。",
+    description: "登录与注册使用同源请求，其余接口使用 HttpOnly 会话 Cookie。接口统一返回 code、data、message。",
   },
   servers: [{ url: "/" }],
   security: [{ sessionCookie: [] }, { secureSessionCookie: [] }],
@@ -91,33 +83,43 @@ export const openApiDocument = {
         tags: ["会话"], summary: "单账号登录",
         description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。",
         security: [],
-        requestBody: requestBody(object({ username: string, password: { ...string, format: "password" } }, ["username", "password"])),
-        responses: replies(object({ name: string })),
+        requestBody: requestBody(object(credentials, ["username", "password"])),
+        responses: {
+          ...replies(object({ name: string })),
+          409: response("尚未注册后台账号", { type: "null" }, 409),
+          503: response("数据库连接尚未配置", { type: "null" }, 503),
+        },
       },
     },
     "/api/logout": {
       post: { tags: ["会话"], summary: "退出登录", responses: replies({ type: "null" }) },
     },
-    "/api/setup": {
+    "/api/register": {
       post: {
-        tags: ["系统设置"], summary: "首次初始化",
-        description: "未初始化时可调用。使用 pnpm setup:code 生成的验证码，首次配置须提供数据库连接和后台账号密码。",
+        tags: ["会话"], summary: "注册后台账号",
+        description: "尚无后台账号时，使用部署环境的 REGISTRATION_KEY 注册。成功后尝试建立登录会话。",
         security: [],
         requestBody: requestBody(object({
-          ...systemSettingsInput, setupSecret: { ...string, format: "password" },
-        }, [...settingsRequired, "databaseUrl", "password", "setupSecret"])),
-        responses: { ...replies(settingsSaved, 201), ...settingsErrors },
+          ...credentials,
+          registrationKey: { ...string, format: "password", minLength: 1, maxLength: 1024, writeOnly: true },
+        }, ["username", "password", "registrationKey"])),
+        responses: {
+          ...replies(object({ name: string }), 201),
+          403: response("注册密钥错误或请求来源不受信任", { type: "null" }, 403),
+          409: response("后台账号已注册", { type: "null" }, 409),
+          503: response("注册未启用或数据库连接尚未配置", { type: "null" }, 503),
+        },
       },
     },
     "/api/settings": {
       get: {
-        tags: ["系统设置"], summary: "读取系统设置",
-        responses: replies(object(systemSettingsView)),
+        tags: ["系统配置"], summary: "读取系统配置",
+        responses: replies(object(systemSettings)),
       },
       put: {
-        tags: ["系统设置"], summary: "保存系统设置",
+        tags: ["系统配置"], summary: "保存系统配置",
         requestBody: requestBody(object(systemSettingsInput, settingsRequired)),
-        responses: { ...replies(settingsSaved), ...settingsErrors },
+        responses: { ...replies(settingsSaved), 409: response("系统配置已更新", { type: "null" }, 409) },
       },
     },
     "/api/fuel/options": {
