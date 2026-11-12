@@ -175,7 +175,7 @@ export function ArchiveManager({
         rowKey="id"
         columns={columns}
         dataSource={list.data?.items ?? []}
-        loading={list.isFetching}
+        loading={list.isFetching && (!list.data || list.isPlaceholderData)}
         search={false}
         options={false}
         scroll={{ x: vehicle ? 870 : 800 }}

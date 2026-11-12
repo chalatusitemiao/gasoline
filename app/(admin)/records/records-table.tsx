@@ -240,7 +240,7 @@ export function RecordsTable({
         rowKey="id"
         columns={recordColumns}
         dataSource={records.data?.items ?? []}
-        loading={records.isFetching}
+        loading={records.isFetching && (!records.data || records.isPlaceholderData)}
         search={false}
         options={false}
         toolBarRender={false}

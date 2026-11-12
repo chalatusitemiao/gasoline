@@ -170,7 +170,11 @@
   max-width: 100%;
 }
 
-.panel > .chartCanvas {
+.chartFrame {
+  min-width: 0;
+}
+
+.panel > .chartFrame {
   flex: 1 0 auto;
 }
 

@@ -35,6 +35,21 @@
   margin-bottom: 24px;
 }
 
+.rememberHint {
+  margin-inline-start: 8px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.navigationStatus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-block-size: 88px;
+  color: var(--app-text-secondary);
+}
+
 .accountLink {
   color: var(--app-primary);
 }

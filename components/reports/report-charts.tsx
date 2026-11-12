@@ -3,16 +3,44 @@
 import { Empty } from "antd";
 import type { BarSeriesOption, LineSeriesOption } from "echarts";
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { FuelMetricKey, FuelMetrics, MonthMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
 import { formatNumber } from "./report-ui";
 import { metricValue, ReportDecimal, roundedMetricValue, sharePercent } from "./report-values";
 import styles from "./reports.module.css";
 
-const Chart = dynamic(() => import("./chart"), {
+const ChartCanvas = dynamic(() => import("./chart"), {
   ssr: false,
   loading: () => <div className={styles.chartPlaceholder} role="status">正在加载图表</div>,
 });
+
+function Chart({ height, ...props }: ComponentProps<typeof ChartCanvas> & { height: number }) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!frame.current) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const id = requestAnimationFrame(() => setReady(true));
+      return () => cancelAnimationFrame(id);
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        observer.disconnect();
+        setReady(true);
+      }
+    }, { rootMargin: "120px 0px" });
+    observer.observe(frame.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={frame} className={styles.chartFrame} style={{ height }}>
+      {ready ? <ChartCanvas {...props} /> : null}
+    </div>
+  );
+}
 
 const blue = "#1677ff";
 const teal = "#08979c";

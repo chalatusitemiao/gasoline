@@ -13,7 +13,6 @@ import {
 import { init, use as registerECharts, type EChartsType } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
-import styles from "./reports.module.css";
 
 registerECharts([
   BarChart,
@@ -30,23 +29,31 @@ registerECharts([
 
 export default function Chart({
   option,
-  height,
   label,
 }: {
   option: EChartsOption;
-  height: number;
   label: string;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const chart = useRef<EChartsType | null>(null);
 
   useEffect(() => {
-    if (!element.current) return;
+    const node = element.current;
+    if (!node) return;
 
-    const instance = init(element.current);
+    const instance = init(node);
     chart.current = instance;
-    const observer = new ResizeObserver(() => instance.resize());
-    observer.observe(element.current);
+    let width = node.clientWidth;
+    let height = node.clientHeight;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = node.clientWidth;
+      const nextHeight = node.clientHeight;
+      if (nextWidth === width && nextHeight === height) return;
+      width = nextWidth;
+      height = nextHeight;
+      instance.resize();
+    });
+    observer.observe(node);
 
     return () => {
       observer.disconnect();
@@ -64,5 +71,5 @@ export default function Chart({
     }, { notMerge: true });
   }, [label, option]);
 
-  return <div ref={element} className={styles.chartCanvas} style={{ height, minWidth: 0 }} role="img" aria-label={label} />;
+  return <div ref={element} style={{ height: "100%" }} role="img" aria-label={label} />;
 }
