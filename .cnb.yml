@@ -1,0 +1,56 @@
+"v*":
+  tag_push:
+    - name: 构建 Windows x64 并直传软件中心
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 8
+      docker:
+        image: node:24-bookworm
+        volumes:
+          - /root/.cargo/registry:copy-on-write
+          - /root/.cache/gasoline/xwin:copy-on-write
+          - /root/.cache/gasoline/pnpm:copy-on-write
+      stages:
+        - name: 校验 Windows 发布标签
+          script: node scripts/build-windows.mjs --check-tag
+        - name: 构建 Windows x64 NSIS 安装包
+          env:
+            XWIN_ARCH: x86_64
+            XWIN_CACHE_DIR: /root/.cache/gasoline/xwin
+          script: |
+            bash -euo pipefail <<'BASH'
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y --no-install-recommends \
+              build-essential ca-certificates clang-19 clang-tools-19 cmake curl lld-19 llvm-19 \
+              nasm ninja-build nsis pkg-config zip
+
+            curl --proto '=https' --tlsv1.2 -fsSL --retry 3 https://sh.rustup.rs \
+              | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path \
+                --target x86_64-pc-windows-msvc
+            export PATH="/usr/lib/llvm-19/bin:$HOME/.cargo/bin:$PATH"
+
+            tools_dir=$(mktemp -d)
+            trap 'rm -rf "$tools_dir"' EXIT
+            curl --proto '=https' --tlsv1.2 -fsSL --retry 3 \
+              https://github.com/rust-cross/cargo-xwin/releases/download/v0.23.1/cargo-xwin-v0.23.1.x86_64-unknown-linux-musl.tar.gz \
+              -o "$tools_dir/cargo-xwin.tar.gz"
+            printf '%s  %s\n' c492c6dfb7e5ac0eee586b796e0fc950ba13077e7f0bbb046f445d71790d5360 "$tools_dir/cargo-xwin.tar.gz" \
+              | sha256sum --check
+            tar -xzf "$tools_dir/cargo-xwin.tar.gz" -C "$tools_dir"
+            install -m 755 "$tools_dir/cargo-xwin" /usr/local/bin/cargo-xwin
+
+            npm install --global pnpm@11.5.0
+            pnpm install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
+            pnpm --dir desktop install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
+            node scripts/build-windows.mjs
+            BASH
+        - name: 直传软件中心
+          imports:
+            - https://cnb.cool/ruiange/gasoline-keys/-/blob/main/env.yml
+          env:
+            APPDOWNLOAD_BASE_URL: https://download.ruiange.work
+          lock:
+            key: gasoline-windows-publish
+            wait: true
+          script: node scripts/publish-windows.mjs artifacts/windows/release.json

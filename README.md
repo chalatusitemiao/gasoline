@@ -27,6 +27,26 @@ pnpm --dir desktop tauri dev
 
 在 Windows 生成 x64 安装包可执行 `pnpm --dir desktop tauri build --target x86_64-pc-windows-msvc -- --locked`，也可手动运行 GitHub Actions 的 **Build Windows client** 并下载 `gasoline-windows-x64` 产物。填写工作流的 `api_origin` 或设置构建环境变量 `VITE_GASOLINE_API_ORIGIN` 可以预填服务器地址。
 
+### 通过 CNB 发布到软件中心
+
+推送 `v主版本.次版本.修订版本` 格式的 tag 到 `cnb` 远端会触发 Windows x64 发布。流水线把 tag 的版本写入 Tauri 安装包，使用附注 tag 的标题作为更新说明。CNB 交叉构建 NSIS 安装程序并打包为 `Gasoline-<version>-windows-x64.zip`。流水线向软件中心申请短效 R2 上传地址，直接把 ZIP PUT 到 R2，再请求软件中心核验 SHA-256、发布并读回公开版本。
+
+首次发布前，软件中心需部署接受 `gasoline/windows/x86_64/zip` 的版本。CNB 的上传阶段从 `ruiange/gasoline-keys` 仓库的 `main/env.yml` 导入 `UPDATE_UPLOAD_TOKEN`。在该密钥文件中填入软件中心提供的上传令牌，并限定引用范围。
+
+```yaml
+allow_slugs: ruiange/gasoline
+allow_events: tag_push
+allow_branches: 'v*'
+UPDATE_UPLOAD_TOKEN: '<软件中心上传令牌>'
+```
+
+把包含流水线的提交同步到 CNB 后，在该提交上打 tag 并推送。每个已发布版本的安装包不可覆盖。若完成上传时响应中断，按流水线日志中的会话 ID 在软件中心核对结果。
+
+```sh
+git tag -a v0.1.0 -m 'Windows 客户端首发'
+git push cnb refs/tags/v0.1.0
+```
+
 ## 接口
 
 - 路由处理器放在 `app/api/`。需要登录的业务接口复用 `lib/server-api.ts` 中的 `apiRoute`，服务端使用 Zod 校验外部输入。
