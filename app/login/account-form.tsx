@@ -3,9 +3,8 @@
 import { KeyOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
 import { LoginForm as ProLoginForm, ProFormCheckbox, ProFormText } from "@ant-design/pro-components";
 import { Alert, Spin } from "antd";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { AppLink, useAppNavigation } from "@/components/app-navigation";
 import { BrandMark } from "@/components/brand-mark";
 import { ApiClientError, apiFetch, jsonRequest } from "@/lib/api-client";
 import { loginErrorMessage, loginSchema } from "@/lib/login-contract";
@@ -17,9 +16,13 @@ type AccountFields = {
   registrationKey?: string;
   rememberPassword?: boolean;
 };
-type AccountFormProps =
+type AccountFormProps = (
   | { mode: "login"; next: string }
-  | { mode: "register"; next: string; registrationUnavailable: string | null };
+  | { mode: "register"; next: string; registrationUnavailable: string | null }
+) & {
+  rememberPassword?: boolean;
+  onAccountAccepted?: () => string | void | Promise<string | void>;
+};
 
 async function saveBrowserPassword(username: string, password: string) {
   const { PasswordCredential } = window as Window & {
@@ -35,8 +38,19 @@ async function saveBrowserPassword(username: string, password: string) {
   }
 }
 
-export function AccountForm(props: AccountFormProps) {
-  const router = useRouter();
+export function AccountScreen(props: AccountFormProps) {
+  return (
+    <main className={styles.screen} aria-labelledby="account-title">
+      <div className={styles.content}>
+        <AccountForm {...props} />
+      </div>
+    </main>
+  );
+}
+
+function AccountForm(props: AccountFormProps) {
+  const { replace } = useAppNavigation();
+  const { rememberPassword = true } = props;
   const formRef = useRef<{ nativeElement?: HTMLElement } | undefined>(undefined);
   const pendingRequest = useRef(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -81,13 +95,14 @@ export function AccountForm(props: AccountFormProps) {
         ...jsonRequest("POST", payload),
         signal: controller.signal,
       });
+      const destination = props.onAccountAccepted ? await props.onAccountAccepted() : undefined;
 
-      if (!isRegistration && values.rememberPassword) {
+      if (!isRegistration && rememberPassword && values.rememberPassword) {
         void saveBrowserPassword(credentials.data.username, credentials.data.password);
       }
 
       setPhase("accepted");
-      startNavigation(() => router.replace(props.next));
+      startNavigation(() => replace(destination || props.next));
     } catch (error) {
       setPhase("idle");
       if (controller.signal.aborted) {
@@ -109,9 +124,9 @@ export function AccountForm(props: AccountFormProps) {
       contentStyle={{ minWidth: "min(280px, 100%)", maxWidth: "min(75vw, 100%)" }}
       otherStyle={{ textAlign: "center" }}
       actions={submitting || navigating ? null : (
-        <Link className={styles.accountLink} href={isRegistration ? "/login" : "/register"}>
+        <AppLink className={styles.accountLink} href={isRegistration ? "/login" : "/register"}>
           {isRegistration ? "返回登录" : "注册账号"}
-        </Link>
+        </AppLink>
       )}
       formRef={formRef}
       name={isRegistration ? "registration" : "login"}
@@ -174,7 +189,7 @@ export function AccountForm(props: AccountFormProps) {
                 prefix: <KeyOutlined />,
               }}
             />
-          ) : (
+          ) : rememberPassword && (
             <ProFormCheckbox name="rememberPassword">
               记住密码<span className={styles.rememberHint}>由浏览器保存</span>
             </ProFormCheckbox>

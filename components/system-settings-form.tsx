@@ -3,8 +3,8 @@
 import { AimOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Form, Input, InputNumber, Select, Skeleton } from "antd";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAppNavigation } from "@/components/app-navigation";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import styles from "./system-settings.module.css";
 
@@ -48,7 +48,7 @@ function getTimeZoneOptions(zones: string[], selected?: string) {
 
 export function SystemSettingsPanel() {
   const queryClient = useQueryClient();
-  const router = useRouter();
+  const { refresh } = useAppNavigation();
   const settings = useQuery({
     queryKey: settingsKey,
     queryFn: ({ signal }) => apiFetch<Settings>("/api/settings", { signal }),
@@ -70,7 +70,7 @@ export function SystemSettingsPanel() {
   return <SystemSettingsForm settings={settings.data} onSaved={(updated) => {
     queryClient.setQueryData(settingsKey, updated);
     void queryClient.invalidateQueries({ queryKey: ["fuel"] });
-    router.refresh();
+    refresh();
   }} />;
 }
 
@@ -83,6 +83,7 @@ function SystemSettingsForm({
 }) {
   const [form] = Form.useForm<SettingsValues>();
   const { message } = App.useApp();
+  const { onSessionEnded } = useAppNavigation();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [availableTimeZones, setAvailableTimeZones] = useState<string[]>([]);
@@ -112,7 +113,8 @@ function SystemSettingsForm({
 
       const updated = await apiFetch<SettingsResult>("/api/settings", jsonRequest("PUT", payload));
       if (updated.requireLogin) {
-        await goToLogin(updated.authUrl);
+        if (onSessionEnded) await onSessionEnded();
+        else await goToLogin(updated.authUrl);
         return;
       }
 

@@ -21,9 +21,8 @@ import {
 } from "@ant-design/icons";
 import { ProLayout, type ProLayoutProps } from "@ant-design/pro-components";
 import { App, Avatar, Button, Dropdown } from "antd";
-import Link, { useLinkStatus } from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useAppNavigation } from "@/components/app-navigation";
 import { BrandMark } from "@/components/brand-mark";
 import { apiFetch } from "@/lib/api-client";
 import styles from "./admin.module.css";
@@ -95,43 +94,6 @@ const layoutSettings = {
   ],
 } satisfies ProLayoutProps;
 
-function NavigationIndicator() {
-  const { pending } = useLinkStatus();
-  return pending ? <span className={styles.navigationIndicator} aria-hidden="true" /> : null;
-}
-
-function NavigationLink({ children, ...props }: ComponentProps<typeof Link>) {
-  const [hoverIntent, setHoverIntent] = useState(false);
-  const [focusIntent, setFocusIntent] = useState(false);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const current = props["aria-current"] === "page";
-  // 可见时只预取动态路由的占位，用户有访问意图时才预取完整页面。
-  const prefetch = current ? false : hoverIntent || focusIntent ? true : null;
-
-  useEffect(() => () => clearTimeout(hoverTimer.current), []);
-
-  return (
-    <Link
-      {...props}
-      prefetch={prefetch}
-      onPointerEnter={({ pointerType }) => {
-        if (pointerType === "mouse" && !current) {
-          hoverTimer.current = setTimeout(() => setHoverIntent(true), 120);
-        }
-      }}
-      onPointerLeave={() => {
-        clearTimeout(hoverTimer.current);
-        setHoverIntent(false);
-      }}
-      onFocus={({ currentTarget }) => setFocusIntent(currentTarget.matches(":focus-visible"))}
-      onBlur={() => setFocusIntent(false)}
-    >
-      {children}
-      <NavigationIndicator />
-    </Link>
-  );
-}
-
 export function AdminShell({
   children,
   name,
@@ -139,7 +101,7 @@ export function AdminShell({
   children: ReactNode;
   name: string;
 }) {
-  const pathname = usePathname();
+  const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
   const { message } = App.useApp();
   const [signingOut, setSigningOut] = useState(false);
   const currentPath = pathname.replace(/\/$/, "");
@@ -152,7 +114,8 @@ export function AdminShell({
 
     try {
       await apiFetch("/api/logout", { method: "POST" });
-      window.location.replace("/login");
+      if (onSessionEnded) await onSessionEnded();
+      else window.location.replace("/login");
     } catch {
       message.error("退出失败，请重试。");
       setSigningOut(false);
@@ -173,7 +136,7 @@ export function AdminShell({
       contentStyle={{ padding: 0, minWidth: 0 }}
       menu={{ locale: false }}
       headerTitleRender={(logo, title) => (
-        <NavigationLink
+        <MenuLink
           href="/dashboard"
           className={styles.brand}
           aria-label="车辆监控首页"
@@ -181,7 +144,7 @@ export function AdminShell({
         >
           {logo}
           {title}
-        </NavigationLink>
+        </MenuLink>
       )}
       token={{
         pageContainer: {
@@ -190,7 +153,7 @@ export function AdminShell({
         },
       }}
       breadcrumbRender={() => page && currentPath !== "/dashboard" ? [
-        { key: "dashboard", title: <NavigationLink href="/dashboard">经营看板</NavigationLink> },
+        { key: "dashboard", title: <MenuLink href="/dashboard">经营看板</MenuLink> },
         ...(section ? [{ key: section.path, title: section.name }] : []),
         { key: currentPath, title: <span aria-current="page">{page.name}</span> },
       ] : []}
@@ -198,18 +161,18 @@ export function AdminShell({
       menuItemRender={(item, defaultDom, menuProps) =>
         item.path && !item.children?.length
           ? (
-            <NavigationLink
+            <MenuLink
               href={item.path}
               aria-current={item.path === currentPath ? "page" : undefined}
               onClick={menuProps.isMobile ? item.onClick : undefined}
             >
               {defaultDom}
-            </NavigationLink>
+            </MenuLink>
           )
           : defaultDom
       }
       actionsRender={() => headerPages.map(({ path, name, icon }) => (
-        <NavigationLink
+        <MenuLink
           key={path}
           href={path}
           className={styles.headerAction}
@@ -218,7 +181,7 @@ export function AdminShell({
           title={name}
         >
           {icon}
-        </NavigationLink>
+        </MenuLink>
       ))}
       avatarProps={{
         render: () => (

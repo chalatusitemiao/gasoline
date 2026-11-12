@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPageSession } from "@/lib/auth";
 import { safeReturnTo } from "@/lib/login-path";
-import { AccountForm } from "./account-form";
-import styles from "./login.module.css";
+import { WebNavigationProvider } from "@/app/web-navigation";
+import { AccountScreen } from "./account-form";
 
 export const metadata: Metadata = {
   title: "登录",
@@ -22,10 +22,8 @@ export default async function LoginPage({
   }
 
   return (
-    <main className={styles.screen} aria-labelledby="account-title">
-      <div className={styles.content}>
-        <AccountForm mode="login" next={next} />
-      </div>
-    </main>
+    <WebNavigationProvider>
+      <AccountScreen mode="login" next={next} />
+    </WebNavigationProvider>
   );
 }

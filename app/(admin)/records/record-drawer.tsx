@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Button, Divider, Drawer, Skeleton, Timeline } from "antd";
-import dynamic from "next/dynamic";
+import { lazy, Suspense } from "react";
 import { FULL_TANK_NOTE, fuelText, QueryError, stampText } from "@/components/fuel/ui";
 import shared from "@/components/fuel/ui.module.css";
 import { apiFetch } from "@/lib/api-client";
@@ -10,10 +10,7 @@ import { driverLabel, type FuelRecordDetail } from "@/lib/fuel";
 import { RecordDetails } from "./record-details";
 import styles from "./records.module.css";
 
-const FuelEditor = dynamic(() => import("@/components/fuel/fuel-editor").then((module) => module.FuelEditor), {
-  ssr: false,
-  loading: () => <Skeleton active />,
-});
+const FuelEditor = lazy(async () => ({ default: (await import("@/components/fuel/fuel-editor")).FuelEditor }));
 
 const labels: Record<string, string> = {
   vehicleId: "车辆",
@@ -71,13 +68,15 @@ export function RecordDrawer({
       {detail.error && <QueryError error={detail.error} retry={() => { void detail.refetch(); }} />}
       {!record && detail.isFetching && <Skeleton active />}
       {record && (editing ? (
-        <FuelEditor
-          key={record.id}
-          today={today}
-          record={record}
-          onCancel={onCancelEdit}
-          onSaved={onCancelEdit}
-        />
+        <Suspense fallback={<Skeleton active />}>
+          <FuelEditor
+            key={record.id}
+            today={today}
+            record={record}
+            onCancel={onCancelEdit}
+            onSaved={onCancelEdit}
+          />
+        </Suspense>
       ) : (
         <>
           <RecordDetails record={record} timeZone={timeZone} />

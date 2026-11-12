@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Allows the bundled main window to use the configured Gasoline API.",
+  "windows": ["main"],
+  "permissions": ["allow-set-api-origin", "allow-api-request"]
+}

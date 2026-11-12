@@ -3,9 +3,9 @@
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useQuery } from "@tanstack/react-query";
 import { Segmented, Tag } from "antd";
-import Link from "next/link";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
+import { AppLink } from "@/components/app-navigation";
 import { apiFetch } from "@/lib/api-client";
 import { driverLabel } from "@/lib/fuel";
 import { monthsInRange, shiftMonth, type FuelAnalytics, type FuelMetricKey, type MonthMetrics, type RecentAnomaly } from "@/lib/fuel-analytics";
@@ -141,9 +141,9 @@ function DashboardAnalysis({ report }: { report: FuelAnalytics }) {
         className={styles.table}
         headerTitle="最近异常记录"
         toolBarRender={() => [
-          <Link key="records" className={styles.tableLink} href="/records?anomaliesOnly=true">
+          <AppLink key="records" className={styles.tableLink} href="/records?anomaliesOnly=true">
             查看异常记录
-          </Link>,
+          </AppLink>,
         ]}
         columns={anomalyColumns}
         rowKey="id"

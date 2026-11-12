@@ -1,0 +1,14 @@
+[package]
+name = "gasoline-desktop"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[build-dependencies]
+tauri-build = "=2.7.4"
+
+[dependencies]
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "system-proxy", "http2", "charset", "cookies", "gzip", "brotli"] }
+serde = { version = "1", features = ["derive"] }
+tauri = "=2.12.5"

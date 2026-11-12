@@ -1,0 +1,27 @@
+.setup {
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: #f0f4fa url("/ant-design-pro/login-background.png") center / cover no-repeat;
+}
+
+.serverCard {
+  width: min(100%, 420px);
+}
+
+.serverTitle {
+  margin-block-end: 24px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.changeServer {
+  position: fixed;
+  z-index: 1;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  text-align: end;
+}

@@ -13,6 +13,20 @@
 - 列表分页默认每页 20 条，分页组件的初始值与请求参数一致。加油台账相关列表复用 `lib/fuel.ts` 中的 `FUEL_PAGE_SIZE`。
 - 支持选择的表格或列表中，点击可选行与点击复选框或单选框共用同一选中状态，遵循现有单选、多选和禁选规则。选中时高亮整行，取消选中时移除高亮。
 
+## Windows 客户端
+
+客户端使用 Tauri 2 和 WebView2，在本地加载与网页版共用的 React 页面、组件和静态资源。登录、会话检查和业务数据读写都使用现有线上 API。首次启动时填写现有网站的 HTTPS 根地址。客户端只保存服务器地址，完全退出进程后需要重新登录。
+
+在 Windows 安装 Rust stable、Microsoft C++ Build Tools 和 WebView2 Runtime 后，从仓库根目录执行下列命令。开发时可以连接本机 `pnpm dev` 启动的 Web 服务，例如 `http://localhost:3000`。
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm --dir desktop install --frozen-lockfile
+pnpm --dir desktop tauri dev
+```
+
+在 Windows 生成 x64 安装包可执行 `pnpm --dir desktop tauri build --target x86_64-pc-windows-msvc -- --locked`，也可手动运行 GitHub Actions 的 **Build Windows client** 并下载 `gasoline-windows-x64` 产物。填写工作流的 `api_origin` 或设置构建环境变量 `VITE_GASOLINE_API_ORIGIN` 可以预填服务器地址。
+
 ## 接口
 
 - 路由处理器放在 `app/api/`。需要登录的业务接口复用 `lib/server-api.ts` 中的 `apiRoute`，服务端使用 Zod 校验外部输入。

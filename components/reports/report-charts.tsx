@@ -2,17 +2,13 @@
 
 import { Empty } from "antd";
 import type { BarSeriesOption, LineSeriesOption } from "echarts";
-import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { FuelMetricKey, FuelMetrics, MonthMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
 import { formatNumber } from "./report-ui";
 import { metricValue, ReportDecimal, roundedMetricValue, sharePercent } from "./report-values";
 import styles from "./reports.module.css";
 
-const ChartCanvas = dynamic(() => import("./chart"), {
-  ssr: false,
-  loading: () => <div className={styles.chartPlaceholder} role="status">正在加载图表</div>,
-});
+const ChartCanvas = lazy(() => import("./chart"));
 
 function Chart({ height, ...props }: ComponentProps<typeof ChartCanvas> & { height: number }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -37,7 +33,11 @@ function Chart({ height, ...props }: ComponentProps<typeof ChartCanvas> & { heig
 
   return (
     <div ref={frame} className={styles.chartFrame} style={{ height }}>
-      {ready ? <ChartCanvas {...props} /> : null}
+      {ready && (
+        <Suspense fallback={<div className={styles.chartPlaceholder} role="status">正在加载图表</div>}>
+          <ChartCanvas {...props} />
+        </Suspense>
+      )}
     </div>
   );
 }

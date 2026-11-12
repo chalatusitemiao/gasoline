@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AccountForm } from "@/app/login/account-form";
-import styles from "@/app/login/login.module.css";
+import { AccountScreen } from "@/app/login/account-form";
+import { WebNavigationProvider } from "@/app/web-navigation";
 import { getPageSession } from "@/lib/auth";
 import { homePath } from "@/lib/login-path";
 
@@ -12,10 +12,8 @@ export default async function RegisterPage() {
   if (session) redirect(homePath);
 
   return (
-    <main className={styles.screen} aria-labelledby="account-title">
-      <div className={styles.content}>
-        <AccountForm mode="register" next={homePath} registrationUnavailable={registrationUnavailable} />
-      </div>
-    </main>
+    <WebNavigationProvider>
+      <AccountScreen mode="register" next={homePath} registrationUnavailable={registrationUnavailable} />
+    </WebNavigationProvider>
   );
 }
