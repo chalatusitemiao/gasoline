@@ -288,7 +288,7 @@ fn extract_installer(
         return Err(INVALID_ARCHIVE);
     }
     let entry = archive.by_index(0).map_err(|_| INVALID_ARCHIVE)?;
-    if entry.name() != file_name
+    if entry.name().map_err(|_| INVALID_ARCHIVE)?.as_ref() != file_name
         || !entry.is_file()
         || entry
             .unix_mode()
