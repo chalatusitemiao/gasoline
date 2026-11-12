@@ -189,10 +189,14 @@ function CostReport({ report }: { report: FuelAnalytics }) {
 
 export function MonthlyReport({ view, initialMonth }: { view: ReportView; initialMonth: string }) {
   const { message } = App.useApp();
-  const [range, setRange] = useState({ from: initialMonth, to: initialMonth });
+  const currentMonth = dayjs(`${initialMonth}-01`);
+  const threeMonthStart = currentMonth.subtract(2, "month");
+  const [range, setRange] = useState({
+    from: view === "drivers" ? threeMonthStart.format("YYYY-MM") : initialMonth,
+    to: initialMonth,
+  });
   const [exporting, setExporting] = useState(false);
   const title = titles[view];
-  const currentMonth = dayjs(`${initialMonth}-01`);
   const query = useQuery({
     queryKey: ["fuel", "analytics", view, range.from, range.to],
     queryFn: ({ signal }) => {
@@ -233,7 +237,7 @@ export function MonthlyReport({ view, initialMonth }: { view: ReportView; initia
               placeholder={["开始月份", "结束月份"]}
               presets={[
                 { label: "本月", value: [currentMonth, currentMonth] },
-                { label: "近 3 个月", value: [currentMonth.subtract(2, "month"), currentMonth] },
+                { label: "近 3 个月", value: [threeMonthStart, currentMonth] },
                 { label: "近 6 个月", value: [currentMonth.subtract(5, "month"), currentMonth] },
                 { label: "今年至今", value: [currentMonth.startOf("year"), currentMonth] },
               ]}
