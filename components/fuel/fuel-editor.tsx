@@ -6,7 +6,6 @@ import { Alert, App, Button, Card, Empty, Form, Spin } from "antd";
 import Decimal from "decimal.js";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import {
-  driverLabel,
   fuelRecordInputSchema,
   fuelRecordUpdateSchema,
   type FuelOptions,
@@ -14,7 +13,7 @@ import {
   type FuelRecordDetail,
   type FuelType,
 } from "@/lib/fuel";
-import { FUEL_OPTIONS, FULL_TANK_NOTE, fuelText, moneyText, numberText, QueryError } from "./ui";
+import { driverOption, FUEL_OPTIONS, FULL_TANK_NOTE, fuelText, moneyText, numberText, QueryError } from "./ui";
 import styles from "./fuel-editor.module.css";
 
 type Fields = {
@@ -189,12 +188,8 @@ export function FuelEditor({
               showSearch
               options={options.data?.drivers
                 .filter((driver) => driver.isActive || driver.id === record?.driverId)
-                .map((driver) => ({
-                  label: `${driverLabel(driver.name, driver.id)}${driver.isActive ? "" : "（停用）"}`,
-                  title: driver.id,
-                  value: driver.id,
-                }))}
-              fieldProps={{ loading: options.isPending, optionFilterProp: "label" }}
+                .map(driverOption)}
+              fieldProps={{ loading: options.isPending, optionFilterProp: "searchText" }}
             />
             <ProFormText name="date" label="加油日期" rules={required} fieldProps={{ type: "date", max: today }} />
             <ProFormSelect name="fuelType" label="油品" rules={required} options={FUEL_OPTIONS} />

@@ -217,7 +217,7 @@ export function MetricTrend({
   );
 }
 
-type RankingRow = { label: string; metrics: FuelMetrics };
+type RankingRow = { id?: string; label: string; metrics: FuelMetrics };
 type RankedValue = { label: string; value: number; displayValue: number | null };
 
 function RankingChart({
@@ -299,12 +299,13 @@ function RankingChart({
 
 function rankRows(rows: readonly RankingRow[], metric: FuelMetricKey, direction: "asc" | "desc"): RankedValue[] {
   return rows
-    .flatMap(({ label, metrics }) => {
+    .flatMap(({ id = "", label, metrics }) => {
       const value = metrics[metric];
-      return value !== null && Number.isFinite(value) ? [{ label, value, displayValue: roundedMetricValue(metrics, metric) }] : [];
+      return value !== null && Number.isFinite(value) ? [{ id, label, value, displayValue: roundedMetricValue(metrics, metric) }] : [];
     })
     .sort((first, second) => (direction === "asc" ? first.value - second.value : second.value - first.value)
-      || first.label.localeCompare(second.label, "zh-CN"));
+      || first.label.localeCompare(second.label, "zh-CN")
+      || first.id.localeCompare(second.id));
 }
 
 export function MetricRanking({

@@ -1,6 +1,6 @@
 import { Descriptions } from "antd";
 import { AnomalyTag, fuelText, moneyText, numberText, stampText } from "@/components/fuel/ui";
-import { driverLabel, type FuelRecord } from "@/lib/fuel";
+import type { FuelRecord } from "@/lib/fuel";
 
 export function RecordDetails({ record, timeZone }: { record: FuelRecord; timeZone: string }) {
   const assessment = record.anomalyAssessment;
@@ -8,7 +8,7 @@ export function RecordDetails({ record, timeZone }: { record: FuelRecord; timeZo
     <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} items={[
       { key: "date", label: "加油日期", children: record.date },
       { key: "plate", label: "车牌", children: record.plate },
-      { key: "driver", label: "司机", children: <span title={record.driverId}>{driverLabel(record.driverName, record.driverId)}</span> },
+      { key: "driver", label: "司机", children: record.driverName },
       { key: "fuel", label: "油品", children: fuelText(record.fuelType) },
       { key: "liters", label: "加油量（L）", children: numberText(record.liters, 3) },
       { key: "unitPrice", label: "单价（元/L）", children: numberText(record.unitPrice, 6) },

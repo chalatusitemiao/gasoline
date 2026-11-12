@@ -6,7 +6,7 @@ import { lazy, Suspense } from "react";
 import { FULL_TANK_NOTE, fuelText, QueryError, stampText } from "@/components/fuel/ui";
 import shared from "@/components/fuel/ui.module.css";
 import { apiFetch } from "@/lib/api-client";
-import { driverLabel, type FuelRecordDetail } from "@/lib/fuel";
+import type { FuelRecordDetail } from "@/lib/fuel";
 import { RecordDetails } from "./record-details";
 import styles from "./records.module.css";
 
@@ -29,9 +29,8 @@ const labels: Record<string, string> = {
   source: "来源",
 };
 
-function changeValue(field: string, value: string, id?: string) {
+function changeValue(field: string, value: string) {
   if (!value) return "—";
-  if (field === "driverId" && id) return driverLabel(value, id);
   if (field === "fuelType") return fuelText(value);
   if (field === "source") return value === "manual" ? "手工录入" : "台账导入";
   return value;
@@ -92,8 +91,8 @@ export function RecordDrawer({
                   <time dateTime={change.changedAt}>{stampText(change.changedAt, timeZone)}</time>
                   <p>原因：{change.reason}</p>
                   <ul>
-                    {change.changes.map(({ field, before, after, beforeId, afterId }) => (
-                      <li key={field}>{labels[field] ?? field}：{changeValue(field, before, beforeId)} → {changeValue(field, after, afterId)}</li>
+                    {change.changes.map(({ field, before, after }) => (
+                      <li key={field}>{labels[field] ?? field}：{changeValue(field, before)} → {changeValue(field, after)}</li>
                     ))}
                   </ul>
                 </div>

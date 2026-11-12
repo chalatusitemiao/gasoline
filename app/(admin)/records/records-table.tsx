@@ -6,12 +6,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Form, Space, Statistic } from "antd";
 import { useState } from "react";
 import {
-  AnomalyTag, anomalyText, FuelPage, FULL_TANK_NOTE, fuelText, moneyText, numberText,
+  AnomalyTag, anomalyText, driverOption, FuelPage, FULL_TANK_NOTE, fuelText, moneyText, numberText,
   QueryError, tablePagination, type Pagination,
 } from "@/components/fuel/ui";
 import shared from "@/components/fuel/ui.module.css";
 import { apiFetch } from "@/lib/api-client";
-import { driverLabel, FUEL_PAGE_SIZE, type FuelOptions, type FuelRecord, type FuelRecordExportRow, type FuelRecordsPage } from "@/lib/fuel";
+import { FUEL_PAGE_SIZE, type FuelOptions, type FuelRecord, type FuelRecordExportRow, type FuelRecordsPage } from "@/lib/fuel";
 import { downloadSheet } from "@/lib/spreadsheet-client";
 import { DeletionLog } from "./deletion-log";
 import { RecordDrawer } from "./record-drawer";
@@ -29,8 +29,7 @@ type Filters = {
 const columns: ProColumns<FuelRecord>[] = [
   { title: "加油日期", dataIndex: "date", width: 112 },
   { title: "车牌", dataIndex: "plate", width: 115 },
-  { title: "司机", dataIndex: "driverName", width: 150, ellipsis: true, render: (_, row) =>
-    <span title={row.driverId}>{driverLabel(row.driverName, row.driverId)}</span> },
+  { title: "司机", dataIndex: "driverName", width: 150, ellipsis: true },
   { title: "加油量（L）", dataIndex: "liters", width: 108, align: "right", renderText: (value: string) => numberText(value, 3) },
   { title: "金额（元）", dataIndex: "amount", width: 112, align: "right", renderText: moneyText },
   { title: "单价（元/L）", dataIndex: "unitPrice", width: 122, align: "right", renderText: (value: string) => numberText(value, 6) },
@@ -207,11 +206,8 @@ export function RecordsTable({
             />
             <ProFormSelect
               name="driverId" label="司机" placeholder="全部司机" showSearch
-              options={options.data?.drivers.map((row) => ({
-                label: `${driverLabel(row.name, row.id)}${row.isActive ? "" : "（停用）"}`,
-                value: row.id,
-              }))}
-              fieldProps={{ optionFilterProp: "label", loading: options.isPending }}
+              options={options.data?.drivers.map(driverOption)}
+              fieldProps={{ optionFilterProp: "searchText", loading: options.isPending }}
             />
             <ProFormText name="keyword" label="关键词" placeholder="车牌、司机、备注" fieldProps={{ maxLength: 100, allowClear: true }} />
           </div>

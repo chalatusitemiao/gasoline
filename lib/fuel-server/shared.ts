@@ -36,11 +36,10 @@ export function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 export async function body<T>(request: Request, schema: z.ZodType<T>, optional = false) {
-  if (optional && request.body === null) return parse(schema, {});
-
   let value: unknown;
   try {
-    value = await request.json();
+    const content = await request.text();
+    value = optional && content === "" ? {} : JSON.parse(content);
   } catch {
     throw new ApiError(400, "请求正文必须是有效的 JSON");
   }

@@ -220,7 +220,9 @@ export const openApiDocument = {
         responses: replies(page(ref("Driver"))),
       },
       post: {
-        tags: ["档案"], summary: "新增司机", requestBody: requestBody(ref("DriverInput")),
+        tags: ["档案"], summary: "新增司机",
+        description: "去除首尾空白、统一全半角和大小写、合并连续空白后检查重名，冲突时返回 409。",
+        requestBody: requestBody(ref("DriverInput")),
         responses: replies(ref("Driver"), 201),
       },
     },
@@ -230,6 +232,7 @@ export const openApiDocument = {
       },
       put: {
         tags: ["档案"], summary: "修改司机", parameters: [pathId],
+        description: "姓名规范化后的值发生变化时，按新增司机的规则检查重名，冲突时返回 409。",
         requestBody: requestBody(ref("DriverInput")), responses: replies(ref("Driver")),
       },
       delete: {

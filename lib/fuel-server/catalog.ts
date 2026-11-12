@@ -148,7 +148,18 @@ export function saveVehicle(input: z.output<typeof vehicleInputSchema>, id?: str
 
 export function saveDriver(input: z.output<typeof driverInputSchema>, id?: string) {
   return writeFuel(async (db) => {
-    const values = { ...input, nameKey: driverNameKey(input.name) };
+    const nameKey = driverNameKey(input.name);
+    const [current] = id
+      ? await db.select({ nameKey: drivers.nameKey }).from(drivers).where(eq(drivers.id, id)).limit(1)
+      : [];
+    if (id && !current) throw new ApiError(404, "司机不存在");
+
+    if (current?.nameKey !== nameKey) {
+      const [existing] = await db.select({ id: drivers.id }).from(drivers).where(eq(drivers.nameKey, nameKey)).limit(1);
+      if (existing) throw new ApiError(409, "该司机姓名已存在");
+    }
+
+    const values = { ...input, nameKey };
     const [saved] = id
       ? await db.update(drivers).set({ ...values, updatedAt: new Date() })
         .where(eq(drivers.id, id)).returning(driverFields)

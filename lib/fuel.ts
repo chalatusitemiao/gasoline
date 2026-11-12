@@ -18,10 +18,6 @@ export function plateKey(plate: string) {
   return plate.normalize("NFKC").toUpperCase().replace(/[\s·]/gu, "");
 }
 
-export function driverLabel(name: string, id: string) {
-  return `${name} · ${id.slice(0, 8)}`;
-}
-
 const plateSchema = z.string().trim().max(40).refine(
   (plate) => /^[\p{L}\p{N}]{2,20}$/u.test(plateKey(plate)),
   "请输入有效车牌",

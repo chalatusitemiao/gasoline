@@ -2,7 +2,6 @@
 
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { Table } from "antd";
-import { driverLabel } from "@/lib/fuel";
 import type { FuelAnalytics, FuelMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
 import { monthsInRange } from "@/lib/fuel-analytics";
 import { formatNumber, signedPercent } from "./report-ui";
@@ -96,7 +95,7 @@ export function VehicleMonthTable({ report }: { report: FuelAnalytics }) {
 
 const driverColumns: ProColumns<RankedDriver>[] = [
   { title: "排名", dataIndex: "rank", width: 64, render: (_, row) => row.rank ?? "—" },
-  { title: "司机", width: 178, ellipsis: true, render: (_, row) => <span title={row.driverId}>{driverLabel(row.name, row.driverId)}</span> },
+  { title: "司机", dataIndex: "name", width: 178, ellipsis: true },
   { title: "加油次数", dataIndex: "count", width: 90, align: "right" },
   { title: "总油量（L）", width: 115, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "liters"), false, 3) },
   { title: "总金额（元）", width: 120, align: "right", render: (_, row) => formatNumber(row.amount, true) },

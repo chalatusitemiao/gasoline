@@ -7,7 +7,6 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { apiFetch } from "@/lib/api-client";
-import { driverLabel } from "@/lib/fuel";
 import { monthsInRange, type AnalyticsView, type FuelAnalytics } from "@/lib/fuel-analytics";
 import { downloadSheet } from "@/lib/spreadsheet-client";
 import { ConsumptionRanking, CostShare, MetricRanking, MetricTrend } from "./report-charts";
@@ -106,19 +105,19 @@ function DriverReport({ report }: { report: FuelAnalytics }) {
         { label: "参与司机", value: drivers.length, unit: "人" },
         {
           label: "最低油耗司机",
-          value: lowest ? driverLabel(lowest.name, lowest.driverId) : null,
+          value: lowest?.name ?? null,
           detail: lowest ? `${formatNumber(roundedMetricValue(lowest, "consumption"))} L/100km` : undefined,
         },
         {
           label: "最高油耗司机",
-          value: highest ? driverLabel(highest.name, highest.driverId) : null,
+          value: highest?.name ?? null,
           detail: highest ? `${formatNumber(roundedMetricValue(highest, "consumption"))} L/100km` : undefined,
         },
         { label: "异常记录", value: total.anomalies, unit: "条", trend: trend("anomalies"), tone: "amber" },
       ]} />
       <ConsumptionRanking
         title="司机百公里油耗对比"
-        rows={ranked.map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+        rows={ranked.map((driver) => ({ id: driver.driverId, label: driver.name, metrics: driver }))}
         labelWidth={126}
         fleet={total}
       />
@@ -126,7 +125,7 @@ function DriverReport({ report }: { report: FuelAnalytics }) {
         <MetricRanking
           title="司机行驶里程前 10"
           rows={drivers.filter(({ distance }) => distance > 0)
-            .map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+            .map((driver) => ({ id: driver.driverId, label: driver.name, metrics: driver }))}
           labelWidth={126}
           metric="distance"
           limit={10}
@@ -134,7 +133,7 @@ function DriverReport({ report }: { report: FuelAnalytics }) {
         <MetricRanking
           title="司机异常记录数前 10"
           rows={drivers.filter(({ anomalies }) => anomalies > 0)
-            .map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+            .map((driver) => ({ id: driver.driverId, label: driver.name, metrics: driver }))}
           labelWidth={126}
           metric="anomalies"
           limit={10}

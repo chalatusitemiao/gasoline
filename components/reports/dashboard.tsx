@@ -7,7 +7,6 @@ import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { AppLink } from "@/components/app-navigation";
 import { apiFetch } from "@/lib/api-client";
-import { driverLabel } from "@/lib/fuel";
 import { monthsInRange, shiftMonth, type FuelAnalytics, type FuelMetricKey, type MonthMetrics, type RecentAnomaly } from "@/lib/fuel-analytics";
 import { ConsumptionRanking, CostShare, MetricTrend } from "./report-charts";
 import { FuelCalculationNote, MetricCards, ReportPending, formatNumber, type Metric } from "./report-ui";
@@ -50,7 +49,7 @@ function decimal(value: string | null) {
 const anomalyColumns: ProColumns<RecentAnomaly>[] = [
   { title: "加油日期", dataIndex: "date", width: 124 },
   { title: "车牌号", dataIndex: "plate", width: 122 },
-  { title: "司机", width: 180, ellipsis: true, render: (_, row) => <span title={row.driverId}>{driverLabel(row.driver, row.driverId)}</span> },
+  { title: "司机", dataIndex: "driver", width: 180, ellipsis: true },
   {
     title: "里程表（km）",
     align: "right",
@@ -132,7 +131,7 @@ function DashboardAnalysis({ report }: { report: FuelAnalytics }) {
         />
         <ConsumptionRanking
           title="本月司机油耗排行"
-          rows={report.drivers.map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+          rows={report.drivers.map((driver) => ({ id: driver.driverId, label: driver.name, metrics: driver }))}
           labelWidth={126}
           fleet={current}
         />

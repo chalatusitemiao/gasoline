@@ -4,7 +4,7 @@ import { Alert, Button, Tag, type TablePaginationConfig } from "antd";
 import Decimal from "decimal.js";
 import type { ReactNode } from "react";
 import { AdminPage } from "@/components/admin-page";
-import type { FuelRecord } from "@/lib/fuel";
+import type { Driver, FuelRecord } from "@/lib/fuel";
 import styles from "./ui.module.css";
 
 export const FULL_TANK_NOTE = "油耗按每次加满计算，部分加油会使单笔油耗失真。";
@@ -12,6 +12,11 @@ export const FUEL_OPTIONS = [
   { label: "柴油", value: "diesel" },
   { label: "汽油", value: "gasoline" },
 ];
+
+export function driverOption({ id, name, isActive }: Driver) {
+  const label = isActive ? name : `${name}（停用）`;
+  return { label, value: id, searchText: `${label} ${id}` };
+}
 
 const stampFormats = new Map<string, Intl.DateTimeFormat>();
 
