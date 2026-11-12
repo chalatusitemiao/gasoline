@@ -5,7 +5,7 @@
         tags: cnb:arch:amd64
         cpus: 8
       docker:
-        image: node:24-bookworm
+        image: node:24-trixie
         volumes:
           - /root/.cargo/registry:copy-on-write
           - /root/.cache/gasoline/xwin:copy-on-write
@@ -25,6 +25,8 @@
             apt-get install -y --no-install-recommends \
               build-essential ca-certificates clang-19 clang-tools-19 cmake curl lld-19 llvm-19 \
               nasm ninja-build nsis pkg-config zip
+            makensis -VERSION
+            test -f /usr/share/nsis/Include/Win/RestartManager.nsh
 
             curl --proto '=https' --tlsv1.2 -fsSL --retry 3 https://sh.rustup.rs \
               | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path \
