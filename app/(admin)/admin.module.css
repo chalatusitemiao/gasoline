@@ -23,6 +23,16 @@
   color: var(--app-text);
 }
 
+.headerAction[aria-current="page"] {
+  color: var(--app-primary);
+}
+
+.headerAction:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
 .account {
   height: 36px;
   padding: 0 6px;

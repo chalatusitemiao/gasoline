@@ -3,6 +3,7 @@
 import {
   BarChartOutlined,
   BookOutlined,
+  CalculatorOutlined,
   CarOutlined,
   DashboardOutlined,
   FileExcelOutlined,
@@ -68,7 +69,10 @@ const navigation: NavigationItem[] = [
   { path: "/settings", name: "系统配置", icon: <SettingOutlined /> },
 ];
 
-const docsPage = { path: "/docs", name: "接口文档" };
+const headerPages = [
+  { path: "/docs", name: "接口文档", icon: <BookOutlined /> },
+  { path: "/calculation-docs", name: "计算文档", icon: <CalculatorOutlined /> },
+];
 
 const routes = {
   path: "/",
@@ -117,9 +121,8 @@ export function AdminShell({
   const [signingOut, setSigningOut] = useState(false);
   const currentPath = pathname.replace(/\/$/, "");
   const section = navigation.find((item) => item.children?.some((child) => child.path === currentPath));
-  const page = currentPath === docsPage.path
-    ? docsPage
-    : (section?.children ?? navigation).find((item) => item.path === currentPath);
+  const page = headerPages.find((item) => item.path === currentPath)
+    ?? (section?.children ?? navigation).find((item) => item.path === currentPath);
 
   async function signOut() {
     setSigningOut(true);
@@ -177,18 +180,18 @@ export function AdminShell({
           )
           : defaultDom
       }
-      actionsRender={() => [
+      actionsRender={() => headerPages.map(({ path, name, icon }) => (
         <NavigationLink
-          key={docsPage.path}
-          href={docsPage.path}
+          key={path}
+          href={path}
           className={styles.headerAction}
-          aria-label={docsPage.name}
-          aria-current={currentPath === docsPage.path ? "page" : undefined}
-          title={docsPage.name}
+          aria-label={name}
+          aria-current={currentPath === path ? "page" : undefined}
+          title={name}
         >
-          <BookOutlined />
-        </NavigationLink>,
-      ]}
+          {icon}
+        </NavigationLink>
+      ))}
       avatarProps={{
         render: () => (
           <Dropdown

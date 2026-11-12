@@ -13,6 +13,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*", "/refuel/:path*", "/records/:path*",
     "/vehicle-report/:path*", "/driver-report/:path*", "/costs/:path*",
-    "/vehicles/:path*", "/drivers/:path*", "/import/:path*", "/docs/:path*", "/settings/:path*",
+    "/vehicles/:path*", "/drivers/:path*", "/import/:path*", "/settings/:path*",
+    "/docs/:path*", "/calculation-docs/:path*",
   ],
 };
