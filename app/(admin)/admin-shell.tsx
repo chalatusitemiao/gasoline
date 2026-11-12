@@ -14,6 +14,7 @@ import {
   OrderedListOutlined,
   ProfileOutlined,
   SettingOutlined,
+  SyncOutlined,
   TeamOutlined,
   UnorderedListOutlined,
   UserOutlined,
@@ -97,9 +98,11 @@ const layoutSettings = {
 export function AdminShell({
   children,
   name,
+  onCheckForUpdate,
 }: {
   children: ReactNode;
   name: string;
+  onCheckForUpdate?: () => void;
 }) {
   const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
   const { message } = App.useApp();
@@ -188,8 +191,12 @@ export function AdminShell({
           <Dropdown
             trigger={["click"]}
             menu={{
-              items: [{ key: "logout", icon: <LogoutOutlined />, label: "退出登录" }],
+              items: [
+                ...(onCheckForUpdate ? [{ key: "check-update", icon: <SyncOutlined />, label: "检查更新" }] : []),
+                { key: "logout", icon: <LogoutOutlined />, label: "退出登录" },
+              ],
               onClick: ({ key }) => {
+                if (key === "check-update") onCheckForUpdate?.();
                 if (key === "logout") void signOut();
               },
             }}

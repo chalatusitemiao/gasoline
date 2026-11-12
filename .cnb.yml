@@ -7,63 +7,50 @@
       docker:
         image: node:24-trixie
         volumes:
-          - /root/.cargo/registry:copy-on-write
-          - /root/.cache/gasoline/xwin:copy-on-write
-          - /root/.cache/gasoline/pnpm:copy-on-write
+          - windows:/root/.cache/gasoline/pnpm:copy-on-write
       stages:
         - name: 校验 Windows 发布标签
           script: node scripts/build-windows.mjs --check-tag
+        - name: 准备 Windows SDK 和构建工具缓存
+          type: docker:cache
+          timeout: 45m
+          options:
+            dockerfile: .cnb/windows-toolchain.Dockerfile
+            sync: true
+          exports:
+            name: WINDOWS_TOOLCHAIN_IMAGE
+        - name: 准备锁定的 Cargo 依赖缓存
+          type: docker:cache
+          timeout: 30m
+          options:
+            dockerfile: .cnb/windows-deps.Dockerfile
+            by:
+              - desktop/src-tauri/Cargo.toml
+              - desktop/src-tauri/Cargo.lock
+            buildArgs:
+              WINDOWS_TOOLCHAIN_IMAGE: ${WINDOWS_TOOLCHAIN_IMAGE}
+            sync: true
+          exports:
+            name: WINDOWS_BUILD_IMAGE
         - name: 构建 Windows x64 NSIS 安装包
+          image: ${WINDOWS_BUILD_IMAGE}
           timeout: 45m
           env:
-            XWIN_ARCH: x86_64
-            XWIN_CACHE_DIR: /root/.cache/gasoline/xwin
+            CARGO_NET_OFFLINE: "true"
           script: |
-            bash -euo pipefail <<'BASH'
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install -y --no-install-recommends \
-              build-essential ca-certificates clang-19 clang-tools-19 cmake curl lld-19 llvm-19 \
-              nasm ninja-build nsis pkg-config zip
+            set -eu
+            printf 'Windows 工具链缓存镜像：%s\n' "$WINDOWS_TOOLCHAIN_IMAGE"
+            printf 'Windows Cargo 依赖缓存镜像：%s\n' "$WINDOWS_BUILD_IMAGE"
+            printf 'Windows SDK 缓存：'
+            du -sh "$XWIN_CACHE_DIR"
+            test -s "$XWIN_CACHE_DIR/xwin/DONE"
             makensis -VERSION
-            test -f /usr/share/nsis/Include/Win/RestartManager.nsh
+            cargo fetch --locked --offline --target x86_64-pc-windows-msvc --manifest-path desktop/src-tauri/Cargo.toml
+            echo 'Cargo 依赖离线检查通过'
 
-            curl --proto '=https' --tlsv1.2 -fsSL --retry 3 https://sh.rustup.rs \
-              | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path \
-                --target x86_64-pc-windows-msvc
-            export PATH="/usr/lib/llvm-19/bin:$HOME/.cargo/bin:$PATH"
-
-            tools_dir=$(mktemp -d)
-            heartbeat_pid=
-            cleanup() {
-              if [[ -n "$heartbeat_pid" ]]; then
-                kill "$heartbeat_pid" 2>/dev/null || true
-              fi
-              rm -rf "$tools_dir"
-            }
-            trap cleanup EXIT
-            curl --proto '=https' --tlsv1.2 -fsSL --retry 3 \
-              https://github.com/rust-cross/cargo-xwin/releases/download/v0.23.1/cargo-xwin-v0.23.1.x86_64-unknown-linux-musl.tar.gz \
-              -o "$tools_dir/cargo-xwin.tar.gz"
-            printf '%s  %s\n' c492c6dfb7e5ac0eee586b796e0fc950ba13077e7f0bbb046f445d71790d5360 "$tools_dir/cargo-xwin.tar.gz" \
-              | sha256sum --check
-            tar -xzf "$tools_dir/cargo-xwin.tar.gz" -C "$tools_dir"
-            install -m 755 "$tools_dir/cargo-xwin" /usr/local/bin/cargo-xwin
-
-            npm install --global pnpm@11.5.0
             pnpm install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
             pnpm --dir desktop install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
-
-            # cargo-xwin may download the Windows SDK for more than ten minutes without logging.
-            (
-              while sleep 30; do
-                sdk_size=$(du -sh "$XWIN_CACHE_DIR" 2>/dev/null | cut -f1 || true)
-                printf 'Windows 构建进行中，SDK 缓存：%s\n' "${sdk_size:-准备中}"
-              done
-            ) &
-            heartbeat_pid=$!
             node scripts/build-windows.mjs
-            BASH
         - name: 直传软件中心
           imports:
             - https://cnb.cool/ruiange/gasoline-keys/-/blob/main/env.yml

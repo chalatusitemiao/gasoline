@@ -17,6 +17,8 @@
 
 客户端使用 Tauri 2 和 WebView2，在本地加载与网页版共用的 React 页面、组件和静态资源。登录、会话检查和业务数据读写都使用现有线上 API。首次启动时填写现有网站的 HTTPS 根地址。客户端只保存服务器地址，完全退出进程后需要重新登录。
 
+从 `v0.1.1` 起，登录 Windows 客户端后可在右上角账号菜单选择「检查更新」。发现新版本时，客户端显示更新说明。点击「下载并安装」后，客户端从软件中心下载安装包，校验 SHA-256，再启动安装程序并退出。
+
 在 Windows 安装 Rust stable、Microsoft C++ Build Tools 和 WebView2 Runtime 后，从仓库根目录执行下列命令。开发时可以连接本机 `pnpm dev` 启动的 Web 服务，例如 `http://localhost:3000`。
 
 ```powershell
@@ -30,6 +32,8 @@ pnpm --dir desktop tauri dev
 ### 通过 CNB 发布到软件中心
 
 推送 `v主版本.次版本.修订版本` 格式的 tag 到 `cnb` 远端会触发 Windows x64 发布。流水线把 tag 的版本写入 Tauri 安装包，使用附注 tag 的标题作为更新说明。CNB 交叉构建 NSIS 安装程序并打包为 `Gasoline-<version>-windows-x64.zip`。流水线向软件中心申请短效 R2 上传地址，直接把 ZIP PUT 到 R2，再请求软件中心核验 SHA-256、发布并读回公开版本。
+
+CNB 将 Windows SDK 与构建工具、Cargo 依赖分别保存为缓存镜像，供不同 tag 和构建节点使用。修改 Cargo 依赖清单时只重建依赖缓存，Windows SDK 继续复用。Windows 构建使用离线 Cargo 模式，首次建立缓存时会下载工具链和依赖。
 
 首次发布前，软件中心需部署接受 `gasoline/windows/x86_64/zip` 的版本。CNB 的上传阶段从 `ruiange/gasoline-keys` 仓库的 `main/env.yml` 导入 `UPDATE_UPLOAD_TOKEN`。在该密钥文件中填入软件中心提供的上传令牌，并限定引用范围。
 
