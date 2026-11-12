@@ -14,6 +14,7 @@
         - name: 校验 Windows 发布标签
           script: node scripts/build-windows.mjs --check-tag
         - name: 构建 Windows x64 NSIS 安装包
+          timeout: 45m
           env:
             XWIN_ARCH: x86_64
             XWIN_CACHE_DIR: /root/.cache/gasoline/xwin
@@ -31,7 +32,14 @@
             export PATH="/usr/lib/llvm-19/bin:$HOME/.cargo/bin:$PATH"
 
             tools_dir=$(mktemp -d)
-            trap 'rm -rf "$tools_dir"' EXIT
+            heartbeat_pid=
+            cleanup() {
+              if [[ -n "$heartbeat_pid" ]]; then
+                kill "$heartbeat_pid" 2>/dev/null || true
+              fi
+              rm -rf "$tools_dir"
+            }
+            trap cleanup EXIT
             curl --proto '=https' --tlsv1.2 -fsSL --retry 3 \
               https://github.com/rust-cross/cargo-xwin/releases/download/v0.23.1/cargo-xwin-v0.23.1.x86_64-unknown-linux-musl.tar.gz \
               -o "$tools_dir/cargo-xwin.tar.gz"
@@ -43,6 +51,15 @@
             npm install --global pnpm@11.5.0
             pnpm install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
             pnpm --dir desktop install --frozen-lockfile --store-dir /root/.cache/gasoline/pnpm
+
+            # cargo-xwin may download the Windows SDK for more than ten minutes without logging.
+            (
+              while sleep 30; do
+                sdk_size=$(du -sh "$XWIN_CACHE_DIR" 2>/dev/null | cut -f1 || true)
+                printf 'Windows 构建进行中，SDK 缓存：%s\n' "${sdk_size:-准备中}"
+              done
+            ) &
+            heartbeat_pid=$!
             node scripts/build-windows.mjs
             BASH
         - name: 直传软件中心
