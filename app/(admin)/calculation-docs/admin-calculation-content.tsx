@@ -52,11 +52,6 @@ export default function AdminCalculationContent() {
         <h3>后台账号</h3>
         <p>用户名和密码用于后台登录。新密码留空时沿用当前密码，修改用户名或密码后需要重新登录。</p>
       </section>
-
-      <section id="other">
-        <h2>接口文档、登录与注册</h2>
-        <p>接口文档通过 Scalar 展示接口说明与请求、响应结构。登录页校验后台账号，注册页在系统尚无后台账号且环境启用注册时用于初始化账号。</p>
-      </section>
     </>
   );
 }

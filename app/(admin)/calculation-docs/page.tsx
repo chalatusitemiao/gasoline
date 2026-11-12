@@ -21,7 +21,6 @@ const sections = [
   { id: "vehicles", title: "车辆档案" },
   { id: "drivers", title: "司机档案" },
   { id: "settings", title: "系统配置" },
-  { id: "other", title: "接口文档、登录与注册" },
 ];
 
 export default async function CalculationDocsPage() {
