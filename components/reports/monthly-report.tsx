@@ -192,7 +192,7 @@ export function MonthlyReport({ view, initialMonth }: { view: ReportView; initia
   const currentMonth = dayjs(`${initialMonth}-01`);
   const threeMonthStart = currentMonth.subtract(2, "month");
   const [range, setRange] = useState({
-    from: view === "drivers" ? threeMonthStart.format("YYYY-MM") : initialMonth,
+    from: threeMonthStart.format("YYYY-MM"),
     to: initialMonth,
   });
   const [exporting, setExporting] = useState(false);
