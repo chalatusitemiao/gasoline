@@ -203,6 +203,7 @@ function SystemSettingsForm({
           <Form.Item
             name="anomalyMultiplier"
             label="油耗异常倍数"
+            extra="调整油耗参数后，各车辆的历史异常会在该车下次新增、修改、删除或导入加油记录时重新判定。"
             rules={[{ required: true, type: "number", min: 1, max: 100, message: "请输入 1–100 的数值" }]}
           >
             <InputNumber className={styles.number} min={1} max={100} step={0.1} />

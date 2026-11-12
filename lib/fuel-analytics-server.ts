@@ -14,6 +14,7 @@ import {
 
 const monthKey = sql<string>`to_char(${fuelRecords.date}, 'YYYY-MM')`;
 const hasInterval = gt(fuelRecords.distance, "0");
+const AnalyticsDecimal = Decimal.clone({ precision: 40, rounding: Decimal.ROUND_HALF_UP });
 const rawMetrics = {
   count: sql<number>`count(*)::integer`,
   liters: sql<string>`coalesce(sum(${fuelRecords.liters}), 0)`,
@@ -35,10 +36,10 @@ type RawMetrics = {
 function summarize(rows: readonly RawMetrics[]): FuelMetrics {
   let count = 0;
   let anomalies = 0;
-  let liters = new Decimal(0);
-  let amount = new Decimal(0);
-  let distance = new Decimal(0);
-  let intervalLiters = new Decimal(0);
+  let liters = new AnalyticsDecimal(0);
+  let amount = new AnalyticsDecimal(0);
+  let distance = new AnalyticsDecimal(0);
+  let intervalLiters = new AnalyticsDecimal(0);
 
   for (const row of rows) {
     count += row.count;
@@ -58,6 +59,12 @@ function summarize(rows: readonly RawMetrics[]): FuelMetrics {
     consumption: distance.isZero() ? null : intervalLiters.times(100).div(distance).toNumber(),
     amountPerKm: distance.isZero() ? null : amount.div(distance).toNumber(),
     averagePrice: liters.isZero() ? null : amount.div(liters).toNumber(),
+    exactTotals: {
+      liters: liters.toFixed(),
+      amount: amount.toFixed(),
+      distance: distance.toFixed(),
+      intervalLiters: intervalLiters.toFixed(),
+    },
   };
 }
 
@@ -136,6 +143,7 @@ export async function getFuelAnalytics(
           id: fuelRecords.id,
           date: fuelRecords.date,
           plate: vehicles.plate,
+          driverId: drivers.id,
           driver: drivers.name,
           odometer: fuelRecords.odometer,
           distance: fuelRecords.distance,

@@ -8,6 +8,9 @@ const decimal = { type: "string", description: "十进制数字字符串" };
 const decimalInput = { oneOf: [decimal, { type: "number" }] };
 const nullableDecimal = { type: ["string", "null"] };
 const fuelType = { type: "string", enum: ["diesel", "gasoline"] };
+const number = { type: "number" };
+const nullableNumber = { type: ["number", "null"] };
+const month = { type: "string", pattern: "^(?!0000)\\d{4}-(0[1-9]|1[0-2])$", example: "2026-01" };
 
 const object = (properties: Record<string, unknown>, required?: string[]) =>
   ({ type: "object", properties, ...(required ? { required } : {}) });
@@ -39,7 +42,7 @@ const pageParams = [
   query("page", { ...integer, minimum: 1, default: 1 }),
   query("pageSize", { ...integer, minimum: 1, maximum: 100, default: FUEL_PAGE_SIZE }),
 ];
-const catalogParams = [...pageParams, query("keyword", string)];
+const catalogStatus = { type: "string", enum: ["true", "false", "1", "0"] };
 const page = (items: Record<string, unknown>, extra?: Record<string, unknown>) =>
   object({ items: array(items), total: integer, page: integer, pageSize: integer, ...extra });
 const idResult = object({ id: uuid });
@@ -48,6 +51,22 @@ const recordInput = {
   liters: decimalInput, unitPrice: decimalInput, odometer: decimalInput, notes: string,
 };
 const recordRequired = ["vehicleId", "driverId", "date", "fuelType", "liters", "unitPrice", "odometer"];
+const recordFilterParams = [
+  query("from", date), query("to", date), query("vehicleId", uuid),
+  query("driverId", uuid), query("keyword", string),
+  query("anomaliesOnly", { type: "string", enum: ["true", "false", "1", "0"] }),
+];
+const recordExportFields = {
+  date, plate: string, driverId: uuid, driverName: string, fuelType,
+  liters: decimal, unitPrice: decimal, amount: decimal, odometer: decimal, distance: nullableDecimal,
+  consumption: nullableDecimal, baseline: nullableDecimal,
+  anomalyAssessment: {
+    description: "进行油耗阈值比较时使用的原值。未进行比较或历史记录尚未保存原值时为空。",
+    oneOf: [ref("FuelAnomalyAssessment"), { type: "null" }],
+  },
+  anomalyReason: { type: ["string", "null"], enum: ["odometer_not_increased", "consumption_high", null] },
+  createdBy: string, notes: string,
+};
 const cookie = { type: "apiKey", in: "cookie", "x-scalar-ignore": true };
 const boolean = { type: "boolean" };
 const systemSettings = {
@@ -67,6 +86,22 @@ const settingsSaved = object({ ...systemSettings, requireLogin: boolean });
 const credentials = {
   username: systemSettings.username,
   password: { ...string, format: "password", minLength: 1, maxLength: 1024, writeOnly: true },
+};
+const fuelMetrics = {
+  count: integer,
+  liters: number,
+  amount: number,
+  distance: number,
+  anomalies: integer,
+  consumption: nullableNumber,
+  amountPerKm: nullableNumber,
+  averagePrice: nullableNumber,
+  exactTotals: object({
+    liters: decimal,
+    amount: decimal,
+    distance: decimal,
+    intervalLiters: { ...decimal, description: "区间里程大于 0 的记录的油量合计" },
+  }),
 };
 
 export const openApiDocument = {
@@ -131,7 +166,8 @@ export const openApiDocument = {
     },
     "/api/fuel/vehicles": {
       get: {
-        tags: ["档案"], summary: "分页查询车辆", parameters: catalogParams,
+        tags: ["档案"], summary: "分页查询车辆",
+        parameters: [...pageParams, query("keyword", { ...string, description: "车牌或备注" }), query("fuelType", fuelType)],
         responses: replies(page(ref("Vehicle"))),
       },
       post: {
@@ -165,13 +201,22 @@ export const openApiDocument = {
     "/api/fuel/vehicles/import": {
       post: {
         tags: ["导入"], summary: "批量导入车辆档案",
-        requestBody: requestBody(object({ plates: array(string), fuelType, notes: string }, ["plates", "fuelType"])),
+        requestBody: requestBody(object({
+          plates: { ...array(string), minItems: 1, maxItems: FUEL_IMPORT_LIMIT },
+          fuelType,
+          notes: string,
+        }, ["plates", "fuelType"])),
         responses: replies(object({ added: array(string), existing: array(string), invalid: array(string) })),
       },
     },
     "/api/fuel/drivers": {
       get: {
-        tags: ["档案"], summary: "分页查询司机", parameters: catalogParams,
+        tags: ["档案"], summary: "分页查询司机",
+        parameters: [
+          ...pageParams,
+          query("keyword", { ...string, description: "姓名、手机号、备注或档案编号" }),
+          query("isActive", catalogStatus),
+        ],
         responses: replies(page(ref("Driver"))),
       },
       post: {
@@ -195,15 +240,14 @@ export const openApiDocument = {
     "/api/fuel/records": {
       get: {
         tags: ["台账"], summary: "筛选加油记录并汇总",
-        parameters: [
-          ...pageParams, query("from", date), query("to", date), query("vehicleId", uuid),
-          query("driverId", uuid), query("keyword", string),
-          query("anomaliesOnly", { type: "string", enum: ["true", "false", "1", "0"] }),
-        ],
+        parameters: [...pageParams, ...recordFilterParams],
         responses: replies(page(ref("FuelRecord"), {
           summary: object({
             recordCount: integer, totalLiters: decimal, totalAmount: decimal,
-            totalDistance: decimal, averageConsumption: nullableDecimal, anomalyCount: integer,
+            totalDistance: decimal,
+            averageConsumption: { ...nullableDecimal, description: "平均油耗，保留 6 位小数" },
+            exactAverageConsumption: { ...nullableDecimal, description: "未按显示精度舍入的平均油耗" },
+            anomalyCount: integer,
           }),
         })),
       },
@@ -211,6 +255,14 @@ export const openApiDocument = {
         tags: ["台账"], summary: "手工录入一条加油记录",
         description: "日期按业务时区判断且不能是未来。金额由服务端用油量乘单价计算。",
         requestBody: requestBody(ref("FuelRecordInput")), responses: replies(ref("FuelRecord"), 201),
+      },
+    },
+    "/api/fuel/records/export": {
+      get: {
+        tags: ["台账"], summary: "查询加油明细导出数据",
+        description: "使用与列表相同的筛选条件，按日期、入库顺序倒序返回同一快照中的全部匹配记录。",
+        parameters: recordFilterParams,
+        responses: replies(array(ref("FuelRecordExportRow"))),
       },
     },
     "/api/fuel/records/{id}": {
@@ -244,10 +296,14 @@ export const openApiDocument = {
         description: "保留文件金额，反算单价。错行跳过，返回原文件行号和原因。",
         requestBody: requestBody(object({
           fuelType,
+          date1904: {
+            ...boolean, default: false,
+            description: "数字日期序号是否使用 Excel 1904 日期系统。CSV 和省略此字段的请求按 1900 日期系统解释，序号的小数部分不计入日期。",
+          },
           rows: { ...array(object({
             rowNumber: integer, plate: string, date: string, liters: string,
             amount: string, odometer: string, driver: string,
-          })), maxItems: FUEL_IMPORT_LIMIT },
+          }, ["rowNumber", "plate", "date", "liters", "amount", "odometer", "driver"])), minItems: 1, maxItems: FUEL_IMPORT_LIMIT },
         }, ["rows"])),
         responses: replies(object({ imported: integer, issues: array(object({ rowNumber: integer, message: string })) })),
       },
@@ -256,11 +312,22 @@ export const openApiDocument = {
       get: {
         tags: ["报表"], summary: "查询经营看板或指定报表",
         parameters: [
-          query("view", { type: "string", enum: ["dashboard", "vehicles", "drivers", "costs"] }),
-          query("from", { type: "string", example: "2026-01" }),
-          query("to", { type: "string", example: "2026-06" }),
+          query("view", { type: "string", enum: ["dashboard", "vehicles", "drivers", "costs"], default: "dashboard" }),
+          query("from", { ...month, description: "起始月份（含）。经营看板固定查询近 6 个月。" }),
+          query("to", { ...month, description: "结束月份（含）。默认业务时区的本月。" }),
         ],
-        responses: replies({ type: "object", description: "统计、排行、矩阵或趋势数据，由 view 决定" }),
+        responses: replies(object({
+          from: month, to: month, currentMonth: month,
+          total: object(fuelMetrics),
+          months: array(ref("FuelMonthMetrics")),
+          vehicles: array(object({ ...fuelMetrics, vehicleId: uuid, plate: string, months: array(ref("FuelMonthMetrics")) })),
+          drivers: array(object({ ...fuelMetrics, driverId: uuid, name: string, usualVehicles: array(string) })),
+          recentAnomalies: array(object({
+            id: uuid, date, plate: string, driverId: uuid, driver: string, odometer: decimal,
+            distance: nullableDecimal, consumption: nullableDecimal,
+            reason: { type: ["string", "null"], enum: ["odometer_not_increased", "consumption_high", null] },
+          })),
+        })),
       },
     },
   },
@@ -270,6 +337,7 @@ export const openApiDocument = {
       secureSessionCookie: { ...cookie, name: "__Secure-better-auth.session_token" },
     },
     schemas: {
+      FuelMonthMetrics: object({ ...fuelMetrics, month }),
       VehicleInput: object({ plate: string, fuelType, notes: string }, ["plate", "fuelType"]),
       Vehicle: object({
         id: uuid, plate: string, fuelType, notes: string, createdAt: string, updatedAt: string,
@@ -281,14 +349,15 @@ export const openApiDocument = {
         createdAt: string, updatedAt: string, refuelCount: integer,
       }),
       FuelRecordInput: object(recordInput, recordRequired),
+      FuelAnomalyAssessment: object({
+        consumption: decimal, baseline: decimal, multiplier: decimal, threshold: decimal, sampleCount: integer,
+      }, ["consumption", "baseline", "multiplier", "threshold", "sampleCount"]),
+      FuelRecordExportRow: object(recordExportFields),
       FuelRecord: object({
-        ...recordInput, id: uuid, plate: string, driverName: string, liters: decimal,
-        unitPrice: decimal, odometer: decimal, amount: decimal, distance: nullableDecimal,
-        consumption: nullableDecimal, baseline: nullableDecimal,
+        ...recordExportFields, id: uuid, vehicleId: uuid,
         isAnomaly: { type: "boolean" },
-        anomalyReason: { type: ["string", "null"], enum: ["odometer_not_increased", "consumption_high", null] },
         source: { type: "string", enum: ["manual", "import"] },
-        createdBy: string, updatedBy: string, createdAt: string, updatedAt: string,
+        updatedBy: string, createdAt: string, updatedAt: string,
       }),
       FuelChange: object({
         id: uuid, changedBy: string, changedAt: string, reason: string,

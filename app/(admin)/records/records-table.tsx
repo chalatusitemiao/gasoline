@@ -11,7 +11,7 @@ import {
 } from "@/components/fuel/ui";
 import shared from "@/components/fuel/ui.module.css";
 import { apiFetch } from "@/lib/api-client";
-import { FUEL_PAGE_SIZE, type FuelOptions, type FuelRecord, type FuelRecordsPage } from "@/lib/fuel";
+import { driverLabel, FUEL_PAGE_SIZE, type FuelOptions, type FuelRecord, type FuelRecordExportRow, type FuelRecordsPage } from "@/lib/fuel";
 import { downloadSheet } from "@/lib/spreadsheet-client";
 import { DeletionLog } from "./deletion-log";
 import { RecordDrawer } from "./record-drawer";
@@ -29,33 +29,40 @@ type Filters = {
 const columns: ProColumns<FuelRecord>[] = [
   { title: "加油日期", dataIndex: "date", width: 112 },
   { title: "车牌", dataIndex: "plate", width: 115 },
-  { title: "司机", dataIndex: "driverName", width: 116, ellipsis: true, render: (_, row) => row.driverName || "—" },
+  { title: "司机", dataIndex: "driverName", width: 150, ellipsis: true, render: (_, row) =>
+    <span title={row.driverId}>{driverLabel(row.driverName, row.driverId)}</span> },
   { title: "加油量（L）", dataIndex: "liters", width: 108, align: "right", renderText: (value: string) => numberText(value, 3) },
   { title: "金额（元）", dataIndex: "amount", width: 112, align: "right", renderText: moneyText },
   { title: "单价（元/L）", dataIndex: "unitPrice", width: 122, align: "right", renderText: (value: string) => numberText(value, 6) },
   { title: "里程表（km）", dataIndex: "odometer", width: 118, align: "right", renderText: (value: string) => numberText(value) },
   { title: "区间里程（km）", dataIndex: "distance", width: 128, align: "right", renderText: (value: string | null) => numberText(value) },
   { title: "油耗（L/100km）", dataIndex: "consumption", width: 136, align: "right", renderText: (value: string | null) => numberText(value) },
-  { title: "状态", width: 110, render: (_, row) => <AnomalyTag reason={row.anomalyReason} /> },
+  { title: "状态", width: 110, render: (_, row) => <AnomalyTag reason={row.anomalyReason} context={row} /> },
 ];
 
-function loadRecords(filters: Filters, pagination: Pagination, signal?: AbortSignal) {
-  const params = new URLSearchParams({
-    page: String(pagination.page),
-    pageSize: String(pagination.pageSize),
-  });
+function filterParams(filters: Filters) {
+  const params = new URLSearchParams();
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
   if (filters.vehicleId) params.set("vehicleId", filters.vehicleId);
   if (filters.driverId) params.set("driverId", filters.driverId);
   if (filters.keyword) params.set("keyword", filters.keyword);
   if (filters.anomaliesOnly) params.set("anomaliesOnly", "true");
+  return params;
+}
+
+function loadRecords(filters: Filters, pagination: Pagination, signal?: AbortSignal) {
+  const params = filterParams(filters);
+  params.set("page", String(pagination.page));
+  params.set("pageSize", String(pagination.pageSize));
   return apiFetch<FuelRecordsPage>(`/api/fuel/records?${params}`, { signal });
 }
 
 const exportHeadings = [
-  "加油日期", "车牌", "司机", "油品", "加油量（L）", "单价（元/L）", "金额（元）",
-  "里程表（km）", "区间里程（km）", "油耗（L/100km）", "异常标签", "录入人", "备注",
+  "加油日期", "车牌", "司机", "司机档案编号", "油品", "加油量（L）", "单价（元/L）", "金额（元）",
+  "里程表（km）", "区间里程（km）", "油耗（L/100km）", "参考油耗（L/100km）", "异常标签",
+  "判定用油耗（L/100km）", "判定用参考油耗（L/100km）", "异常倍数", "判定阈值（L/100km）", "基线样本数",
+  "录入人", "备注",
 ];
 
 function excelNumber(value: string | null) {
@@ -64,12 +71,15 @@ function excelNumber(value: string | null) {
   return significant.length > 15 ? value : Number(value);
 }
 
-function exportRow(row: FuelRecord) {
+function exportRow(row: FuelRecordExportRow) {
+  const assessment = row.anomalyAssessment;
   return [
-    row.date, row.plate, row.driverName, fuelText(row.fuelType), excelNumber(row.liters),
+    row.date, row.plate, row.driverName, row.driverId, fuelText(row.fuelType), excelNumber(row.liters),
     excelNumber(row.unitPrice), excelNumber(row.amount), excelNumber(row.odometer),
-    excelNumber(row.distance), excelNumber(row.consumption),
-    anomalyText(row.anomalyReason), row.createdBy, row.notes,
+    excelNumber(row.distance), excelNumber(row.consumption), excelNumber(row.baseline),
+    anomalyText(row.anomalyReason, row), assessment?.consumption ?? null, assessment?.baseline ?? null,
+    assessment?.multiplier ?? null, assessment?.threshold ?? (row.baseline !== null ? "未记录" : null),
+    assessment?.sampleCount ?? null, row.createdBy, row.notes,
   ];
 }
 
@@ -145,21 +155,14 @@ export function RecordsTable({
   async function exportRecords() {
     setExporting(true);
     try {
-      const pageSize = 100;
-      const first = await loadRecords(filters, { page: 1, pageSize });
-      if (!first.items.length) {
+      const rows = await apiFetch<FuelRecordExportRow[]>(`/api/fuel/records/export?${filterParams(filters)}`);
+      if (!rows.length) {
         message.info("没有符合条件的加油记录。");
         return;
       }
-      const byId = new Map(first.items.map((record) => [record.id, record]));
-      const last = Math.ceil(first.total / pageSize);
-      for (let page = 2; page <= last; page += 1) {
-        const next = await loadRecords(filters, { page, pageSize });
-        for (const record of next.items) byId.set(record.id, record);
-      }
       await downloadSheet(`加油明细_${today}.xlsx`, "加油明细", [
         exportHeadings,
-        ...Array.from(byId.values(), exportRow),
+        ...rows.map(exportRow),
       ]);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "导出失败。");
@@ -205,7 +208,7 @@ export function RecordsTable({
             <ProFormSelect
               name="driverId" label="司机" placeholder="全部司机" showSearch
               options={options.data?.drivers.map((row) => ({
-                label: row.isActive ? row.name : `${row.name}（停用）`,
+                label: `${driverLabel(row.name, row.id)}${row.isActive ? "" : "（停用）"}`,
                 value: row.id,
               }))}
               fieldProps={{ optionFilterProp: "label", loading: options.isPending }}
@@ -226,7 +229,7 @@ export function RecordsTable({
         <Statistic title="记录数" value={numberText(summary?.recordCount, 0)} suffix="条" />
         <Statistic title="加油量" value={numberText(summary?.totalLiters, 3)} suffix="L" />
         <Statistic title="加油金额" value={moneyText(summary?.totalAmount)} suffix="元" />
-        <Statistic title="平均油耗" value={numberText(summary?.averageConsumption)} suffix="L/100km" />
+        <Statistic title="平均油耗" value={numberText(summary?.exactAverageConsumption)} suffix="L/100km" />
         <Statistic title="行驶里程" value={numberText(summary?.totalDistance)} suffix="km" />
       </div>
       <p className={styles.note}>{FULL_TANK_NOTE}</p>

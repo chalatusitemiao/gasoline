@@ -6,9 +6,20 @@ export const fuelTypes = ["diesel", "gasoline"] as const;
 export const fuelTypeSchema = z.enum(fuelTypes);
 export type FuelType = z.infer<typeof fuelTypeSchema>;
 export type FuelAnomaly = "odometer_not_increased" | "consumption_high";
+export type FuelAnomalyAssessment = {
+  consumption: string;
+  baseline: string;
+  multiplier: string;
+  threshold: string;
+  sampleCount: number;
+};
 
 export function plateKey(plate: string) {
   return plate.normalize("NFKC").toUpperCase().replace(/[\s·]/gu, "");
+}
+
+export function driverLabel(name: string, id: string) {
+  return `${name} · ${id.slice(0, 8)}`;
 }
 
 const plateSchema = z.string().trim().max(40).refine(
@@ -104,6 +115,7 @@ export type FuelRecord = {
   distance: string | null;
   consumption: string | null;
   baseline: string | null;
+  anomalyAssessment: FuelAnomalyAssessment | null;
   isAnomaly: boolean;
   anomalyReason: FuelAnomaly | null;
   notes: string;
@@ -113,6 +125,11 @@ export type FuelRecord = {
   createdBy: string;
   updatedBy: string;
 };
+
+export type FuelRecordExportRow = Pick<FuelRecord,
+  "date" | "plate" | "driverId" | "driverName" | "fuelType" | "liters" | "unitPrice" | "amount" |
+  "odometer" | "distance" | "consumption" | "baseline" | "anomalyAssessment" | "anomalyReason" | "createdBy" | "notes"
+>;
 
 export type FuelFieldChange = {
   field: string;
@@ -153,6 +170,7 @@ export type FuelRecordsPage = FuelPage<FuelRecord> & {
     totalAmount: string;
     totalDistance: string;
     averageConsumption: string | null;
+    exactAverageConsumption: string | null;
     anomalyCount: number;
   };
 };

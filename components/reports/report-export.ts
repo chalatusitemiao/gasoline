@@ -1,15 +1,11 @@
 import { monthsInRange, type AnalyticsView, type FuelAnalytics, type FuelMetrics } from "@/lib/fuel-analytics";
-import { rankDrivers, rankVehicles, vehicleMonthIndex } from "./report-values";
+import { rankDrivers, rankVehicles, roundedMetricValue, vehicleMonthIndex } from "./report-values";
 
 type Cell = string | number | null;
 
-function twoPlaces(value: number | null) {
-  return value === null ? null : Number(value.toFixed(2));
-}
-
 function fuelCells(metrics?: FuelMetrics): Cell[] {
   if (!metrics || metrics.count === 0) return [null, null];
-  return [metrics.liters, twoPlaces(metrics.consumption)];
+  return [roundedMetricValue(metrics, "liters"), roundedMetricValue(metrics, "consumption")];
 }
 
 export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: FuelAnalytics): Cell[][] {
@@ -41,16 +37,17 @@ export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: Fu
 
   if (view === "drivers") {
     return [
-      ["排名", "司机", "加油次数", "总油量（L）", "总金额（元）", "总里程（km）", "油耗（L/100km）", "较均值（%）", "异常次数", "常用车辆"],
+      ["排名", "司机", "司机档案编号", "加油次数", "总油量（L）", "总金额（元）", "总里程（km）", "油耗（L/100km）", "较均值（%）", "异常次数", "常用车辆"],
       ...rankDrivers(report).map((driver) => [
         driver.rank,
         driver.name,
+        driver.driverId,
         driver.count,
-        driver.liters,
+        roundedMetricValue(driver, "liters"),
         driver.amount,
         driver.distance,
-        twoPlaces(driver.consumption),
-        twoPlaces(driver.deviation),
+        roundedMetricValue(driver, "consumption"),
+        driver.deviation,
         driver.anomalies,
         driver.usualVehicles.join("、"),
       ]),
@@ -62,21 +59,21 @@ export function reportRows(view: Exclude<AnalyticsView, "dashboard">, report: Fu
     ...rankVehicles(report).map((vehicle) => [
       vehicle.plate,
       vehicle.count,
-      vehicle.liters,
+      roundedMetricValue(vehicle, "liters"),
       vehicle.amount,
       vehicle.distance,
-      twoPlaces(vehicle.consumption),
-      twoPlaces(vehicle.amountPerKm),
-      twoPlaces(vehicle.share),
+      roundedMetricValue(vehicle, "consumption"),
+      roundedMetricValue(vehicle, "amountPerKm"),
+      vehicle.share,
     ]),
     [
       "合计",
       report.total.count,
-      report.total.liters,
+      roundedMetricValue(report.total, "liters"),
       report.total.amount,
       report.total.distance,
-      twoPlaces(report.total.consumption),
-      twoPlaces(report.total.amountPerKm),
+      roundedMetricValue(report.total, "consumption"),
+      roundedMetricValue(report.total, "amountPerKm"),
       report.total.amount > 0 ? 100 : null,
     ],
   ];

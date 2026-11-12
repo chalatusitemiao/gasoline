@@ -2,34 +2,35 @@
 
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { Table } from "antd";
+import { driverLabel } from "@/lib/fuel";
 import type { FuelAnalytics, FuelMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
 import { monthsInRange } from "@/lib/fuel-analytics";
 import { formatNumber, signedPercent } from "./report-ui";
-import { rankDrivers, rankVehicles, vehicleMonthIndex, type RankedDriver } from "./report-values";
+import { exceedsFleetConsumption, rankDrivers, rankVehicles, roundedMetricValue, vehicleMonthIndex, type RankedDriver } from "./report-values";
 import styles from "./reports.module.css";
 
 const pagination = { defaultPageSize: 20, pageSizeOptions: [20, 50, 100], showSizeChanger: true };
 
 function VehicleMonthCell({
   value,
-  fleetConsumption,
+  fleet,
 }: {
   value?: FuelMetrics;
-  fleetConsumption?: number | null;
+  fleet?: FuelMetrics;
 }) {
   if (!value || value.count === 0) return "—";
 
-  const aboveFleet = value.consumption != null && fleetConsumption != null
-    && value.consumption > fleetConsumption * 1.2;
+  const aboveFleet = exceedsFleetConsumption(value, fleet);
+  const consumption = roundedMetricValue(value, "consumption");
 
   return (
     <div className={styles.cell}>
-      <span>{formatNumber(value.liters)} L</span>
+      <span>{formatNumber(roundedMetricValue(value, "liters"), false, 3)} L</span>
       <small
         className={aboveFleet ? styles.flag : undefined}
         title={aboveFleet ? "高于同期均值 20%" : undefined}
       >
-        {value.consumption == null ? "—" : `${formatNumber(value.consumption)} L/100km`}
+        {consumption == null ? "—" : `${formatNumber(consumption)} L/100km`}
       </small>
     </div>
   );
@@ -50,7 +51,7 @@ export function VehicleMonthTable({ report }: { report: FuelAnalytics }) {
       render: (_, vehicle) => (
         <VehicleMonthCell
           value={vehiclesByMonth.get(vehicle.vehicleId)?.get(month)}
-          fleetConsumption={fleetByMonth.get(month)?.consumption}
+          fleet={fleetByMonth.get(month)}
         />
       ),
     })),
@@ -59,7 +60,7 @@ export function VehicleMonthTable({ report }: { report: FuelAnalytics }) {
       key: "total",
       align: "right",
       width: 140,
-      render: (_, vehicle) => <VehicleMonthCell value={vehicle} fleetConsumption={report.total.consumption} />,
+      render: (_, vehicle) => <VehicleMonthCell value={vehicle} fleet={report.total} />,
     },
   ];
 
@@ -95,12 +96,12 @@ export function VehicleMonthTable({ report }: { report: FuelAnalytics }) {
 
 const driverColumns: ProColumns<RankedDriver>[] = [
   { title: "排名", dataIndex: "rank", width: 64, render: (_, row) => row.rank ?? "—" },
-  { title: "司机", dataIndex: "name", width: 108, ellipsis: true },
+  { title: "司机", width: 178, ellipsis: true, render: (_, row) => <span title={row.driverId}>{driverLabel(row.name, row.driverId)}</span> },
   { title: "加油次数", dataIndex: "count", width: 90, align: "right" },
-  { title: "总油量（L）", width: 115, align: "right", render: (_, row) => formatNumber(row.liters) },
+  { title: "总油量（L）", width: 115, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "liters"), false, 3) },
   { title: "总金额（元）", width: 120, align: "right", render: (_, row) => formatNumber(row.amount, true) },
   { title: "总里程（km）", width: 120, align: "right", render: (_, row) => formatNumber(row.distance) },
-  { title: "油耗（L/100km）", width: 136, align: "right", render: (_, row) => formatNumber(row.consumption) },
+  { title: "油耗（L/100km）", width: 136, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "consumption")) },
   { title: "较均值", width: 114, align: "right", render: (_, row) => row.deviation == null ? "—" : signedPercent(row.deviation) },
   { title: "异常次数", dataIndex: "anomalies", width: 86, align: "right" },
   { title: "常用车辆", width: 200, ellipsis: true, render: (_, row) => row.usualVehicles.join("、") || "—" },
@@ -118,7 +119,7 @@ export function DriverTable({ report }: { report: FuelAnalytics }) {
       search={false}
       options={false}
       size="middle"
-      scroll={{ x: 1153 }}
+      scroll={{ x: 1223 }}
       locale={{ emptyText: "所选期间暂无司机加油记录" }}
     />
   );
@@ -129,11 +130,11 @@ type CostVehicle = VehicleMetrics & { share: number | null };
 const costColumns: ProColumns<CostVehicle>[] = [
   { title: "车牌号", dataIndex: "plate", width: 122, fixed: "left" },
   { title: "加油次数", dataIndex: "count", width: 90, align: "right" },
-  { title: "油量（L）", width: 110, align: "right", render: (_, row) => formatNumber(row.liters) },
+  { title: "油量（L）", width: 110, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "liters"), false, 3) },
   { title: "金额（元）", width: 128, align: "right", render: (_, row) => formatNumber(row.amount, true) },
   { title: "里程（km）", width: 115, align: "right", render: (_, row) => formatNumber(row.distance) },
-  { title: "油耗（L/100km）", width: 136, align: "right", render: (_, row) => formatNumber(row.consumption) },
-  { title: "元/公里", width: 104, align: "right", render: (_, row) => formatNumber(row.amountPerKm, true) },
+  { title: "油耗（L/100km）", width: 136, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "consumption")) },
+  { title: "元/公里", width: 104, align: "right", render: (_, row) => formatNumber(roundedMetricValue(row, "amountPerKm"), true) },
   { title: "金额占比", width: 110, align: "right", render: (_, row) => row.share == null ? "—" : `${formatNumber(row.share)}%` },
 ];
 

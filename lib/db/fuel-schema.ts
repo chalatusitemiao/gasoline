@@ -1,7 +1,7 @@
 import {
   bigserial, boolean, date, index, jsonb, numeric, pgTable, text, timestamp, uuid,
 } from "drizzle-orm/pg-core";
-import type { FuelAnomaly, FuelDeletionSnapshot, FuelFieldChange, FuelRecord, FuelType } from "../fuel";
+import type { FuelAnomaly, FuelAnomalyAssessment, FuelDeletionSnapshot, FuelFieldChange, FuelRecord, FuelType } from "../fuel";
 
 export const vehicles = pgTable("vehicles", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -38,6 +38,7 @@ export const fuelRecords = pgTable("fuel_records", {
   distance: numeric("distance", { precision: 12, scale: 2 }),
   consumption: numeric("consumption", { precision: 20, scale: 6 }),
   baseline: numeric("baseline", { precision: 20, scale: 6 }),
+  anomalyAssessment: jsonb("anomaly_assessment").$type<FuelAnomalyAssessment>(),
   isAnomaly: boolean("is_anomaly").default(false).notNull(),
   anomalyReason: text("anomaly_reason").$type<FuelAnomaly>(),
   notes: text("notes").default("").notNull(),

@@ -4,6 +4,7 @@ import { Alert, Button, Tag, type TablePaginationConfig } from "antd";
 import Decimal from "decimal.js";
 import type { ReactNode } from "react";
 import { AdminPage } from "@/components/admin-page";
+import type { FuelRecord } from "@/lib/fuel";
 import styles from "./ui.module.css";
 
 export const FULL_TANK_NOTE = "油耗按每次加满计算，部分加油会使单笔油耗失真。";
@@ -49,14 +50,18 @@ export function fuelText(value: string | null | undefined) {
   return FUEL_OPTIONS.find((option) => option.value === value)?.label ?? "—";
 }
 
-export function anomalyText(reason: string | null) {
+type AnomalyContext = Pick<FuelRecord, "distance" | "baseline">;
+
+export function anomalyText(reason: string | null, context?: AnomalyContext) {
   if (reason === "odometer_not_increased") return "里程未增";
   if (reason === "consumption_high") return "油耗异常";
+  if (context?.distance === null) return "无区间";
+  if (context?.baseline === null) return "样本不足";
   return "正常";
 }
 
-export function AnomalyTag({ reason }: { reason: string | null }) {
-  return <Tag color={reason ? "error" : "default"}>{anomalyText(reason)}</Tag>;
+export function AnomalyTag({ reason, context }: { reason: string | null; context?: AnomalyContext }) {
+  return <Tag color={reason ? "error" : "default"}>{anomalyText(reason, context)}</Tag>;
 }
 
 export function FuelPage({

@@ -1,0 +1,1 @@
+ALTER TABLE "fuel_records" ADD COLUMN "anomaly_assessment" jsonb;

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Form, Input, Space, Tag, Tooltip } from "antd";
 import { useState, type ReactNode } from "react";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
-import { driverInputSchema, FUEL_PAGE_SIZE, vehicleInputSchema, type Driver, type FuelPage as PageData, type FuelType, type Vehicle } from "@/lib/fuel";
+import { driverInputSchema, driverLabel, FUEL_PAGE_SIZE, vehicleInputSchema, type Driver, type FuelPage as PageData, type FuelType, type Vehicle } from "@/lib/fuel";
 import { FUEL_OPTIONS, FuelPage, fuelText, numberText, QueryError, tablePagination } from "./ui";
 import styles from "./ui.module.css";
 
@@ -30,7 +30,12 @@ const vehicleColumns: ProColumns<ArchiveRow>[] = [
 ];
 
 const driverColumns: ProColumns<ArchiveRow>[] = [
-  { title: "姓名", dataIndex: "name", width: 145 },
+  {
+    title: "司机",
+    width: 205,
+    ellipsis: true,
+    render: (_, row) => "name" in row ? <span title={row.id}>{driverLabel(row.name, row.id)}</span> : null,
+  },
   { title: "手机号", dataIndex: "phone", width: 155 },
   {
     title: "状态",
@@ -45,7 +50,7 @@ const driverColumns: ProColumns<ArchiveRow>[] = [
 ];
 
 function displayName(row: ArchiveRow) {
-  return "plate" in row ? row.plate : row.name;
+  return "plate" in row ? row.plate : driverLabel(row.name, row.id);
 }
 
 function editValues(vehicle: boolean, row?: ArchiveRow): Fields {
@@ -173,14 +178,14 @@ export function ArchiveManager({
         loading={list.isFetching}
         search={false}
         options={false}
-        scroll={{ x: vehicle ? 870 : 740 }}
+        scroll={{ x: vehicle ? 870 : 800 }}
         pagination={tablePagination(pagination, list.data?.total ?? 0, setPagination)}
         locale={{ emptyText: `暂无${label}记录` }}
         headerTitle={
           <Input.Search
             className={styles.search}
-            aria-label={vehicle ? "搜索车牌" : "搜索司机姓名或手机号"}
-            placeholder={vehicle ? "搜索车牌" : "搜索姓名或手机号"}
+            aria-label={vehicle ? "搜索车牌" : "搜索司机姓名、手机号或档案编号"}
+            placeholder={vehicle ? "搜索车牌" : "搜索姓名、手机号或档案编号"}
             maxLength={100}
             allowClear
             onSearch={(value) => {

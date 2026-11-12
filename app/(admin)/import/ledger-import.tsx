@@ -41,6 +41,7 @@ export function LedgerImport() {
   const [filename, setFilename] = useState("");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<SourceRow[]>([]);
+  const [date1904, setDate1904] = useState(false);
   const [mapping, setMapping] = useState<Mapping>({});
   const [defaultFuelType, setDefaultFuelType] = useState<"diesel" | "gasoline">("diesel");
   const [reading, setReading] = useState(false);
@@ -70,7 +71,7 @@ export function LedgerImport() {
     setMapping({});
 
     try {
-      const cells = await readSheet(file);
+      const { rows: cells, date1904 } = await readSheet(file);
       const headerIndex = cells.findIndex((row) => row.some(Boolean));
       if (headerIndex < 0) throw new Error("文件没有可用数据。");
       const data = cells.slice(headerIndex + 1)
@@ -79,6 +80,7 @@ export function LedgerImport() {
       const columnCount = data.reduce((width, row) => Math.max(width, row.cells.length), cells[headerIndex].length);
       const columns = Array.from({ length: columnCount }, (_, index) => cells[headerIndex][index] ?? "");
       setFilename(file.name);
+      setDate1904(date1904);
       setHeaders(columns);
       setRows(data);
       setMapping(guessMapping(columns));
@@ -115,7 +117,7 @@ export function LedgerImport() {
         });
         const data = await apiFetch<ImportResult>(
           "/api/fuel/import",
-          jsonRequest("POST", { rows: batch, fuelType: defaultFuelType }),
+          jsonRequest("POST", { rows: batch, fuelType: defaultFuelType, date1904 }),
         );
         imported += data.imported;
         issues.push(...data.issues);

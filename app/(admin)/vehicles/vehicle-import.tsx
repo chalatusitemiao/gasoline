@@ -3,7 +3,7 @@
 import { ImportOutlined, UploadOutlined } from "@ant-design/icons";
 import { ProForm, ProFormSelect, ProFormTextArea } from "@ant-design/pro-components";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Form, Input, Modal, Select, Space, Tabs, Upload } from "antd";
+import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Tabs, Upload } from "antd";
 import { useState } from "react";
 import { FUEL_OPTIONS, QueryError } from "@/components/fuel/ui";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
@@ -13,13 +13,18 @@ import styles from "./vehicle-import.module.css";
 
 type Fields = { fuelType: FuelType; notes?: string };
 type Result = { added: string[]; existing: string[]; invalid: string[] };
-type Sheet = { rows: string[][]; filename: string; header: number | null; columns: number[] };
+type Sheet = {
+  rows: string[][];
+  filename: string;
+  header: { row: number; column: number } | null;
+  columns: number[];
+};
 
 function guessPlateColumn(rows: string[][]) {
   const headerPattern = /^(?:车辆)?(?:车牌(?:号(?:码)?)?|号牌(?:号(?:码)?)?|牌照(?:号(?:码)?)?|(?:license)?plate(?:no|number)?)$/iu;
   for (const [index, row] of rows.slice(0, 12).entries()) {
     const column = row.findIndex((value) => headerPattern.test(value.replace(/[\s_-]+/g, "")));
-    if (column !== -1) return { header: index, column };
+    if (column !== -1) return { header: { row: index, column }, column };
   }
 
   const scores = new Map<number, number>();
@@ -44,6 +49,7 @@ export function VehicleImport() {
   const [pasted, setPasted] = useState("");
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [column, setColumn] = useState(0);
+  const [firstDataRow, setFirstDataRow] = useState<number | null>(null);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -52,10 +58,20 @@ export function VehicleImport() {
       apiFetch<Result>("/api/fuel/vehicles/import", jsonRequest("POST", values)),
   });
 
-  const source = mode === "paste"
-    ? pasted.split(/[\n\r,，;；]+/)
-    : sheet?.rows.slice((sheet.header ?? -1) + 1).map((row) => row[column] ?? "") ?? [];
-  const plates = source.map((plate) => plate.trim()).filter(Boolean);
+  const validFirstRow = sheet !== null && firstDataRow !== null &&
+    Number.isInteger(firstDataRow) && firstDataRow >= 1 && firstDataRow <= sheet.rows.length;
+  const filePlates = validFirstRow
+    ? sheet.rows.slice(firstDataRow - 1).map((row, index) => ({
+      plate: row[column]?.trim() ?? "",
+      rowNumber: firstDataRow + index,
+    })).filter(({ plate }) => Boolean(plate))
+    : [];
+  const plates = mode === "paste"
+    ? pasted.split(/[\n\r,，;；]+/).map((plate) => plate.trim()).filter(Boolean)
+    : filePlates.map(({ plate }) => plate);
+  const suggestedFirstRow = sheet?.header?.column === column && sheet.header.row + 2 <= sheet.rows.length
+    ? sheet.header.row + 2
+    : 1;
   const working = reading || importPlates.isPending;
 
   function start() {
@@ -63,6 +79,7 @@ export function VehicleImport() {
     setPasted("");
     setSheet(null);
     setColumn(0);
+    setFirstDataRow(null);
     setResult(null);
     setError("");
     importPlates.reset();
@@ -73,8 +90,9 @@ export function VehicleImport() {
     setReading(true);
     setError("");
     setSheet(null);
+    setFirstDataRow(null);
     try {
-      const rows = await readSheet(file);
+      const { rows } = await readSheet(file);
       const columns = [...new Set(rows.flatMap((row) => row.flatMap((value, index) => value ? [index] : [])))].sort((a, b) => a - b);
       if (columns.length === 0) throw new Error("文件中没有可读取的数据。");
       const guess = guessPlateColumn(rows);
@@ -89,6 +107,10 @@ export function VehicleImport() {
 
   async function submit(values: Fields) {
     setError("");
+    if (mode === "file" && !validFirstRow) {
+      setError("请选择文件并确认首条数据行。");
+      return;
+    }
     if (!plates.length) {
       setError("请粘贴车牌或从文件选择包含车牌的列。");
       return;
@@ -117,6 +139,7 @@ export function VehicleImport() {
         okText={result ? "完成" : "导入"}
         cancelText="取消"
         confirmLoading={working}
+        okButtonProps={{ disabled: !result && mode === "file" && !validFirstRow }}
         maskClosable={!working}
         keyboard={!working}
         closable={!working}
@@ -171,21 +194,45 @@ export function VehicleImport() {
                       {sheet && (
                         <>
                           <span>{sheet.filename}</span>
+                          <label htmlFor="vehicle-import-plate-column">车牌所在列</label>
                           <Select
-                            aria-label="车牌所在列"
+                            id="vehicle-import-plate-column"
                             value={column}
                             disabled={working}
                             className={styles.column}
-                            onChange={setColumn}
+                            onChange={(value) => {
+                              setColumn(value);
+                              setFirstDataRow(null);
+                              setError("");
+                            }}
                             options={sheet.columns.map((index) => {
-                              const header = sheet.header == null ? "" : sheet.rows[sheet.header]?.[index];
+                              const header = sheet.header == null ? "" : sheet.rows[sheet.header.row]?.[index];
                               return {
                                 label: `第 ${index + 1} 列${header ? `（${header}）` : ""}`,
                                 value: index,
                               };
                             })}
                           />
-                          <span className={styles.count}>只读取所选列{plates.length ? `。预览：${plates.slice(0, 3).join("、")}` : "。"}</span>
+                          <label htmlFor="vehicle-import-first-row">首条数据行</label>
+                          <Space wrap>
+                            <InputNumber
+                              id="vehicle-import-first-row"
+                              min={1}
+                              max={sheet.rows.length}
+                              precision={0}
+                              value={firstDataRow}
+                              disabled={working}
+                              onChange={setFirstDataRow}
+                            />
+                            <Button disabled={working} onClick={() => setFirstDataRow(suggestedFirstRow)}>
+                              从第 {suggestedFirstRow} 行开始
+                            </Button>
+                          </Space>
+                          <span className={styles.count}>
+                            请填写车牌数据开始的行号，有表头时填表头的下一行，无表头时通常填 1。
+                            {filePlates.length > 0 && ` 预览：${filePlates.slice(0, 3).map(({ rowNumber, plate }) =>
+                              `第 ${rowNumber} 行 ${plate}`).join("、")}`}
+                          </span>
                         </>
                       )}
                     </Space>

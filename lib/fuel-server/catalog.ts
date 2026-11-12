@@ -87,7 +87,12 @@ export async function listDrivers(query: unknown): Promise<FuelPage<Driver>> {
   const { keyword, isActive, page, pageSize } = parse(driverFilter, query);
   const pattern = searchPattern(keyword);
   const where = and(
-    keyword ? or(ilike(drivers.name, pattern), ilike(drivers.phone, pattern), ilike(drivers.notes, pattern)) : undefined,
+    keyword ? or(
+      ilike(drivers.name, pattern),
+      ilike(drivers.phone, pattern),
+      ilike(drivers.notes, pattern),
+      ilike(sql`${drivers.id}::text`, pattern),
+    ) : undefined,
     isActive === undefined ? undefined : eq(drivers.isActive, isActive === "true" || isActive === "1"),
   );
 

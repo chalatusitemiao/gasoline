@@ -4,9 +4,9 @@ import { Empty } from "antd";
 import type { BarSeriesOption, LineSeriesOption } from "echarts";
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import type { FuelMetrics, MonthMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
+import type { FuelMetricKey, FuelMetrics, MonthMetrics, VehicleMetrics } from "@/lib/fuel-analytics";
 import { formatNumber } from "./report-ui";
-import { metricValue } from "./report-values";
+import { metricValue, ReportDecimal, roundedMetricValue, sharePercent } from "./report-values";
 import styles from "./reports.module.css";
 
 const Chart = dynamic(() => import("./chart"), {
@@ -33,7 +33,6 @@ const tooltipStyle = {
 
 const compactFormat = new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 2 });
 
-type MetricKey = keyof FuelMetrics;
 type MetricDefinition = {
   name: string;
   unit: string;
@@ -41,10 +40,11 @@ type MetricDefinition = {
   rate?: boolean;
   monetary?: boolean;
   integer?: boolean;
+  digits?: 2 | 3;
 };
 
-const metricDefinitions: Record<MetricKey, MetricDefinition> = {
-  liters: { name: "加油量", unit: "L", color: blue },
+const metricDefinitions: Record<FuelMetricKey, MetricDefinition> = {
+  liters: { name: "加油量", unit: "L", color: blue, digits: 3 },
   amount: { name: "油费", unit: "元", color: blue, monetary: true },
   consumption: { name: "百公里油耗", unit: "L/100km", color: teal, rate: true },
   distance: { name: "行驶里程", unit: "km", color: blue },
@@ -56,7 +56,7 @@ const metricDefinitions: Record<MetricKey, MetricDefinition> = {
 
 function formatChartValue(value: unknown, metric: MetricDefinition) {
   return typeof value === "number" && Number.isFinite(value)
-    ? `${formatNumber(value, metric.monetary)} ${metric.unit}`
+    ? `${formatNumber(value, metric.monetary, metric.digits)} ${metric.unit}`
     : "—";
 }
 
@@ -93,13 +93,17 @@ function trendAxis(metric: MetricDefinition, secondary = false) {
 }
 
 function trendSeries(
-  metric: MetricDefinition,
-  data: (number | null)[],
+  key: FuelMetricKey,
+  months: readonly (MonthMetrics | undefined)[],
   line: boolean,
   secondary = false,
 ): BarSeriesOption | LineSeriesOption {
+  const metric = metricDefinitions[key];
+  const data = months.map((month) => metricValue(month, key));
   const color = secondary ? teal : metric.color;
-  const tooltip = { valueFormatter: (value: unknown) => formatChartValue(value, metric) };
+  const tooltip = {
+    valueFormatter: (_value: unknown, index: number) => formatChartValue(roundedMetricValue(months[index], key), metric),
+  };
 
   if (line) {
     return {
@@ -140,26 +144,22 @@ export function MetricTrend({
   title: string;
   months: readonly string[];
   values: readonly MonthMetrics[];
-  metric: MetricKey;
-  compareMetric?: MetricKey;
+  metric: FuelMetricKey;
+  compareMetric?: FuelMetricKey;
   actions?: ReactNode;
 }) {
   const primary = metricDefinitions[metric];
   const secondary = compareMetric ? metricDefinitions[compareMetric] : null;
   const monthIndex = new Map(values.map((value) => [value.month, value]));
   const activeMonths = months.map((month) => monthIndex.get(month));
-  const primaryData = activeMonths.map((row) => metricValue(row, metric));
-  const secondaryData = compareMetric
-    ? activeMonths.map((row) => metricValue(row, compareMetric))
-    : [];
   const hasData = activeMonths.some((row) =>
     row && row.count > 0 && (row[metric] !== null || (compareMetric && row[compareMetric] !== null))
   );
   const chartLabel = [title, primary.name, secondary?.name]
     .filter((name, index) => name && (index === 0 || !title.includes(name)))
     .join("，");
-  const series = [trendSeries(primary, primaryData, !!primary.rate || metric === "anomalies")];
-  if (secondary) series.push(trendSeries(secondary, secondaryData, true, true));
+  const series = [trendSeries(metric, activeMonths, !!primary.rate || metric === "anomalies")];
+  if (compareMetric) series.push(trendSeries(compareMetric, activeMonths, true, true));
 
   return (
     <ChartPanel title={title} actions={actions}>
@@ -189,7 +189,8 @@ export function MetricTrend({
   );
 }
 
-type RankingRow = { label: string; value: number | null };
+type RankingRow = { label: string; metrics: FuelMetrics };
+type RankedValue = { label: string; value: number; displayValue: number | null };
 
 function RankingChart({
   title,
@@ -197,12 +198,14 @@ function RankingChart({
   metric,
   fleet,
   actions,
+  labelWidth = 79,
 }: {
   title: string;
-  rows: readonly { label: string; value: number }[];
+  rows: readonly RankedValue[];
   metric: MetricDefinition;
-  fleet?: number | null;
+  fleet?: FuelMetrics;
   actions?: ReactNode;
+  labelWidth?: number;
 }) {
   const height = Math.max(chartHeight, rows.length * 30 + 64);
 
@@ -219,7 +222,7 @@ function RankingChart({
             height={height}
             option={{
               tooltip: { ...tooltipStyle, trigger: "axis", axisPointer: { type: "shadow" } },
-              grid: { top: 45, left: 95, right: 54, bottom: 15 },
+              grid: { top: 45, left: labelWidth + 16, right: 54, bottom: 15 },
               xAxis: {
                 ...trendAxis(metric),
                 position: "top",
@@ -230,7 +233,7 @@ function RankingChart({
                 type: "category",
                 inverse: true,
                 data: rows.map((row) => row.label),
-                axisLabel: { ...axisLabel, width: 79, overflow: "truncate", interval: 0 },
+                axisLabel: { ...axisLabel, width: labelWidth, overflow: "truncate", interval: 0 },
                 axisLine,
                 axisTick: { show: false },
               },
@@ -245,13 +248,16 @@ function RankingChart({
                   position: "right",
                   color: axisLabel.color,
                   fontSize: 11,
-                  formatter: ({ value }) => typeof value === "number" ? compactFormat.format(value) : "",
+                  formatter: ({ dataIndex }) => {
+                    const row = rows[dataIndex];
+                    return row ? compactFormat.format(row.displayValue ?? row.value) : "";
+                  },
                 },
-                tooltip: { valueFormatter: (value: unknown) => formatChartValue(value, metric) },
-                markLine: fleet == null ? undefined : {
+                tooltip: { valueFormatter: (value: unknown, index: number) => formatChartValue(rows[index]?.displayValue ?? value, metric) },
+                markLine: fleet?.consumption == null ? undefined : {
                   symbol: ["none", "none"],
-                  data: [{ xAxis: fleet }],
-                  label: { formatter: `均值 ${formatNumber(fleet)}`, position: "insideEndTop", color: teal },
+                  data: [{ xAxis: fleet.consumption }],
+                  label: { formatter: `均值 ${formatNumber(roundedMetricValue(fleet, "consumption"))}`, position: "insideEndTop", color: teal },
                   lineStyle: { type: "dashed", color: teal, width: 1.5 },
                 },
               }],
@@ -263,9 +269,12 @@ function RankingChart({
   );
 }
 
-function rankRows(rows: readonly RankingRow[], direction: "asc" | "desc") {
+function rankRows(rows: readonly RankingRow[], metric: FuelMetricKey, direction: "asc" | "desc"): RankedValue[] {
   return rows
-    .filter((row): row is { label: string; value: number } => row.value !== null && Number.isFinite(row.value))
+    .flatMap(({ label, metrics }) => {
+      const value = metrics[metric];
+      return value !== null && Number.isFinite(value) ? [{ label, value, displayValue: roundedMetricValue(metrics, metric) }] : [];
+    })
     .sort((first, second) => (direction === "asc" ? first.value - second.value : second.value - first.value)
       || first.label.localeCompare(second.label, "zh-CN"));
 }
@@ -276,14 +285,16 @@ export function MetricRanking({
   metric,
   limit,
   actions,
+  labelWidth,
 }: {
   title: string;
   rows: readonly RankingRow[];
-  metric: MetricKey;
+  metric: FuelMetricKey;
   limit?: number;
   actions?: ReactNode;
+  labelWidth?: number;
 }) {
-  const ranked = rankRows(rows, "desc");
+  const ranked = rankRows(rows, metric, "desc");
 
   return (
     <RankingChart
@@ -291,6 +302,7 @@ export function MetricRanking({
       rows={limit === undefined ? ranked : ranked.slice(0, limit)}
       metric={metricDefinitions[metric]}
       actions={actions}
+      labelWidth={labelWidth}
     />
   );
 }
@@ -299,13 +311,15 @@ export function ConsumptionRanking({
   title,
   rows,
   fleet,
+  labelWidth,
 }: {
   title: string;
-  rows: readonly (Pick<FuelMetrics, "consumption"> & { label: string })[];
-  fleet?: number | null;
+  rows: readonly RankingRow[];
+  fleet?: FuelMetrics;
+  labelWidth?: number;
 }) {
-  const ranked = rankRows(rows.map(({ label, consumption }) => ({ label, value: consumption })), "asc");
-  return <RankingChart title={title} rows={ranked} metric={metricDefinitions.consumption} fleet={fleet} />;
+  const ranked = rankRows(rows, "consumption", "asc");
+  return <RankingChart title={title} rows={ranked} metric={metricDefinitions.consumption} fleet={fleet} labelWidth={labelWidth} />;
 }
 
 export function CostShare({
@@ -320,29 +334,33 @@ export function CostShare({
   actions?: ReactNode;
 }) {
   const definition = metricDefinitions[metric];
-  const ranked = rankRows(vehicles.map((vehicle) => ({ label: vehicle.plate, value: vehicle[metric] })), "desc");
-  const positive = ranked.filter((row) => row.value > 0);
-  const total = positive.reduce((sum, row) => sum + row.value, 0);
+  const positive = vehicles
+    .filter((vehicle) => vehicle[metric] > 0)
+    .map((vehicle) => ({ label: vehicle.plate, value: new ReportDecimal(vehicle.exactTotals?.[metric] ?? vehicle[metric]) }))
+    .sort((first, second) => second.value.comparedTo(first.value) || first.label.localeCompare(second.label, "zh-CN"));
+  const total = positive.reduce((sum, row) => sum.plus(row.value), new ReportDecimal(0));
   const maxNamedVehicles = shareColors.length - 1;
-  const slices = positive.length <= shareColors.length ? positive : [
+  const grouped = positive.length <= shareColors.length ? positive : [
     ...positive.slice(0, maxNamedVehicles),
     {
       label: "其他车辆",
-      value: positive.slice(maxNamedVehicles).reduce((sum, row) => sum + row.value, 0),
+      value: positive.slice(maxNamedVehicles).reduce((sum, row) => sum.plus(row.value), new ReportDecimal(0)),
     },
   ];
+  const slices = grouped.map(({ label, value }) => ({ label, value: value.toNumber(), percent: sharePercent(value, total) }));
+  const totalValue = total.toNumber();
 
   return (
     <ChartPanel title={title} actions={actions}>
       {slices.length === 0 ? <EmptyChart /> : (
         <div className={styles.shareLayout}>
           <Chart
-            label={`${title}，合计 ${formatChartValue(total, definition)}`}
+            label={`${title}，合计 ${formatChartValue(totalValue, definition)}`}
             height={200}
             option={{
               color: shareColors,
               title: {
-                text: `${compactFormat.format(total)} ${definition.unit}`,
+                text: `${compactFormat.format(totalValue)} ${definition.unit}`,
                 subtext: `${definition.name}合计`,
                 left: "center",
                 top: "center",
@@ -355,8 +373,9 @@ export function CostShare({
                 trigger: "item",
                 formatter: (params) => {
                   const item = Array.isArray(params) ? params[0] : params;
-                  if (!item) return "";
-                  return `${item.name}\n${formatChartValue(item.value, definition)} · ${formatNumber(item.percent)}%`;
+                  const slice = item && slices[item.dataIndex];
+                  if (!slice) return "";
+                  return `${slice.label}\n${formatChartValue(slice.value, definition)} · ${formatNumber(slice.percent)}%`;
                 },
               },
               series: [{
@@ -371,14 +390,14 @@ export function CostShare({
             }}
           />
           <ul className={styles.shareLegend} aria-label={`${title}明细`}>
-            {slices.map(({ label, value }, index) => (
+            {slices.map(({ label, value, percent }, index) => (
               <li className={styles.shareItem} key={label}>
                 <span className={styles.shareKey}>
                   <span className={styles.shareSwatch} style={{ backgroundColor: shareColors[index] }} aria-hidden="true" />
                   <span title={label}>{label}</span>
                 </span>
                 <span className={styles.shareAmount}>{formatChartValue(value, definition)}</span>
-                <span className={styles.sharePercent}>{formatNumber(value / total * 100)}%</span>
+                <span className={styles.sharePercent}>{formatNumber(percent)}%</span>
               </li>
             ))}
           </ul>

@@ -2,7 +2,7 @@ import type { FuelAnomaly } from "./fuel";
 
 export type AnalyticsView = "dashboard" | "vehicles" | "drivers" | "costs";
 
-export type FuelMetrics = {
+type NumericFuelMetrics = {
   count: number;
   liters: number;
   amount: number;
@@ -11,6 +11,17 @@ export type FuelMetrics = {
   consumption: number | null;
   amountPerKm: number | null;
   averagePrice: number | null;
+};
+
+export type FuelMetricKey = keyof NumericFuelMetrics;
+
+export type FuelMetrics = NumericFuelMetrics & {
+  exactTotals?: {
+    liters: string;
+    amount: string;
+    distance: string;
+    intervalLiters: string;
+  };
 };
 
 export type MonthMetrics = FuelMetrics & { month: string };
@@ -31,6 +42,7 @@ export type RecentAnomaly = {
   id: string;
   date: string;
   plate: string;
+  driverId: string;
   driver: string;
   odometer: string;
   distance: string | null;

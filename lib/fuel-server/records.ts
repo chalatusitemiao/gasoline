@@ -6,20 +6,18 @@ import { getDb } from "@/lib/db";
 import { drivers, fuelChanges, fuelDeletions, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
 import {
   fuelDateSchema, fuelRecordInputSchema, plateKey, type FuelDeletion, type FuelFieldChange,
-  type FuelPage, type FuelRecord, type FuelRecordDetail, type FuelRecordsPage,
+  type FuelPage, type FuelRecord, type FuelRecordDetail, type FuelRecordExportRow, type FuelRecordsPage,
 } from "@/lib/fuel";
 import { todayInBusinessZone } from "@/lib/fuel-calendar";
 import { ApiError } from "@/lib/server-api";
 import { getSystemSettings } from "@/lib/system-settings";
-import { manualAmounts, recalculateVehicles } from "./calculations";
+import { FuelDecimal, manualAmounts, recalculateVehicles } from "./calculations";
 import {
   keywordSchema, pageSchema, parse, readFuel, searchPattern, writeFuel,
   type FuelActor, type FuelReadDb, type FuelTx,
 } from "./shared";
 
-const selection = {
-  id: fuelRecords.id,
-  vehicleId: fuelRecords.vehicleId,
+const exportSelection = {
   plate: vehicles.plate,
   driverId: fuelRecords.driverId,
   driverName: drivers.name,
@@ -32,15 +30,23 @@ const selection = {
   distance: fuelRecords.distance,
   consumption: fuelRecords.consumption,
   baseline: fuelRecords.baseline,
-  isAnomaly: fuelRecords.isAnomaly,
+  anomalyAssessment: fuelRecords.anomalyAssessment,
   anomalyReason: fuelRecords.anomalyReason,
   notes: fuelRecords.notes,
+  createdBy: fuelRecords.createdBy,
+};
+
+const selection = {
+  ...exportSelection,
+  id: fuelRecords.id,
+  vehicleId: fuelRecords.vehicleId,
+  isAnomaly: fuelRecords.isAnomaly,
   source: fuelRecords.source,
   createdAt: fuelRecords.createdAt,
   updatedAt: fuelRecords.updatedAt,
-  createdBy: fuelRecords.createdBy,
   updatedBy: fuelRecords.updatedBy,
 };
+const recordOrder = [desc(fuelRecords.date), desc(fuelRecords.sequence)] as const;
 
 type RecordRow = Omit<FuelRecord, "createdAt" | "updatedAt"> & { createdAt: Date; updatedAt: Date };
 type RecordInput = z.output<typeof fuelRecordInputSchema>;
@@ -67,7 +73,7 @@ function validateRefuelDate(date: string, today: string) {
 
 const dateFilter = z.preprocess((value) => value === "" ? undefined : value, fuelDateSchema.optional());
 const idFilter = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
-const recordFilters = pageSchema.extend({
+const recordFilters = z.object({
   from: dateFilter,
   to: dateFilter,
   vehicleId: idFilter,
@@ -75,14 +81,13 @@ const recordFilters = pageSchema.extend({
   keyword: keywordSchema,
   anomaliesOnly: z.enum(["true", "false", "1", "0"]).optional(),
 });
+const recordPageFilters = pageSchema.extend(recordFilters.shape);
 
-export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
-  const filters = parse(recordFilters, query);
-  const { from, to, page, pageSize, vehicleId, driverId, keyword, anomaliesOnly } = filters;
+function recordWhere({ from, to, vehicleId, driverId, keyword, anomaliesOnly }: z.output<typeof recordFilters>) {
   if (from && to && from > to) throw new ApiError(400, "开始日期不能晚于结束日期");
   const pattern = searchPattern(keyword);
   const normalizedPlate = plateKey(keyword);
-  const where = and(
+  return and(
     from ? gte(fuelRecords.date, from) : undefined,
     to ? lte(fuelRecords.date, to) : undefined,
     vehicleId ? eq(fuelRecords.vehicleId, vehicleId) : undefined,
@@ -94,27 +99,48 @@ export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
       ilike(fuelRecords.notes, pattern),
     ) : undefined,
   );
+}
 
+export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
+  const { page, pageSize, ...filters } = parse(recordPageFilters, query);
+  const where = recordWhere(filters);
   return readFuel(async (db) => {
     const [summary] = await db.select({
       recordCount: count(),
       totalLiters: sql<string>`coalesce(sum(${fuelRecords.liters}), 0)::text`,
       totalAmount: sql<string>`coalesce(sum(${fuelRecords.amount}), 0)::text`,
       totalDistance: sql<string>`coalesce(sum(greatest(${fuelRecords.distance}, 0)), 0)::text`,
-      averageConsumption: sql<string | null>`round(
-        sum(case when ${fuelRecords.distance} > 0 then ${fuelRecords.liters} else 0 end) * 100
-        / nullif(sum(greatest(${fuelRecords.distance}, 0)), 0), 6
-      )::text`,
+      intervalLiters: sql<string>`coalesce(sum(${fuelRecords.liters}) filter (where ${fuelRecords.distance} > 0), 0)::text`,
       anomalyCount: count(sql`case when ${fuelRecords.isAnomaly} then 1 end`),
     }).from(fuelRecords)
       .innerJoin(vehicles, eq(fuelRecords.vehicleId, vehicles.id))
       .innerJoin(drivers, eq(fuelRecords.driverId, drivers.id)).where(where);
 
     const items = await selectRecords(db).where(where)
-      .orderBy(desc(fuelRecords.date), desc(fuelRecords.sequence))
+      .orderBy(...recordOrder)
       .limit(pageSize).offset((page - 1) * pageSize);
-    return { items: items.map(formatRecord), total: summary.recordCount, page, pageSize, summary };
+    const { intervalLiters, ...totals } = summary;
+    const distance = new FuelDecimal(totals.totalDistance);
+    const averageConsumption = distance.gt(0)
+      ? new FuelDecimal(intervalLiters).times(100).div(distance)
+      : null;
+    return {
+      items: items.map(formatRecord), total: totals.recordCount, page, pageSize,
+      summary: {
+        ...totals,
+        averageConsumption: averageConsumption?.toFixed(6) ?? null,
+        exactAverageConsumption: averageConsumption?.toFixed() ?? null,
+      },
+    };
   });
+}
+
+export async function exportRecords(query: unknown): Promise<FuelRecordExportRow[]> {
+  const where = recordWhere(parse(recordFilters, query));
+  return readFuel(async (db) => db.select(exportSelection).from(fuelRecords)
+    .innerJoin(vehicles, eq(fuelRecords.vehicleId, vehicles.id))
+    .innerJoin(drivers, eq(fuelRecords.driverId, drivers.id))
+    .where(where).orderBy(...recordOrder));
 }
 
 export async function recordDetail(id: string): Promise<FuelRecordDetail> {
@@ -278,7 +304,11 @@ export async function listDeletions(query: unknown): Promise<FuelPage<FuelDeleti
       deletedAt: fuelDeletions.deletedAt,
     }).from(fuelDeletions).where(where).orderBy(desc(fuelDeletions.deletedAt), desc(fuelDeletions.id))
       .limit(pageSize).offset((page - 1) * pageSize);
-    const items = rows.map((row) => ({ ...row, deletedAt: row.deletedAt.toISOString() }));
+    const items = rows.map((row) => ({
+      ...row,
+      deletedAt: row.deletedAt.toISOString(),
+      snapshot: { ...row.snapshot, anomalyAssessment: row.snapshot.anomalyAssessment ?? null },
+    }));
     return { items, total: summary.total, page, pageSize };
   });
 }
@@ -303,7 +333,7 @@ export async function recentRecords(vehicleId: string, query: unknown) {
     }
 
     const rows = await selectRecords(db).where(and(eq(fuelRecords.vehicleId, vehicleId), before))
-      .orderBy(desc(fuelRecords.date), desc(fuelRecords.sequence)).limit(3);
+      .orderBy(...recordOrder).limit(3);
     const items = rows.map(formatRecord);
     return { items, latest: items[0] ?? null };
   });

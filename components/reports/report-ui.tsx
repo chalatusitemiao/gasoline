@@ -1,45 +1,49 @@
 "use client";
 
 import { Alert, Button, Skeleton } from "antd";
+import { roundReportValue } from "./report-values";
 import styles from "./reports.module.css";
 
 const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+const litersFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 3 });
 const moneyFormat = new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function formatNumber(value: number | null | undefined, monetary = false) {
-  return value == null || !Number.isFinite(value) ? "—" : (monetary ? moneyFormat : numberFormat).format(value);
+export function formatNumber(value: number | null | undefined, monetary = false, digits: 2 | 3 = 2) {
+  const formatter = monetary ? moneyFormat : digits === 3 ? litersFormat : numberFormat;
+  return value == null || !Number.isFinite(value) ? "—" : formatter.format(value);
 }
 
 export function signedPercent(value: number) {
-  const shown = Math.abs(value) < 0.005 ? 0 : value;
+  const shown = roundReportValue(value) ?? 0;
   return `${shown > 0 ? "+" : ""}${formatNumber(shown)}%`;
 }
 
-type MetricTrendPoint = { month: string; value: number | null };
+type MetricTrendPoint = { month: string; value: number | null; displayValue: number | null };
 
 export type Metric = {
   label: string;
   value: number | string | null;
   unit?: string;
   monetary?: boolean;
+  digits?: 2 | 3;
   comparison?: number | null;
   detail?: string;
   trend?: readonly MetricTrendPoint[];
   tone?: "blue" | "teal" | "amber";
 };
 
-function MetricSparkline({ label, unit, monetary, trend }: Pick<Metric, "label" | "unit" | "monetary"> & {
+function MetricSparkline({ label, unit, monetary, digits, trend }: Pick<Metric, "label" | "unit" | "monetary" | "digits"> & {
   trend: readonly MetricTrendPoint[];
 }) {
   if (trend.length < 2) return null;
 
-  const observations: { index: number; month: string; value: number }[] = [];
+  const observations: { index: number; month: string; value: number; displayValue: number }[] = [];
   let minimum = Infinity;
   let maximum = -Infinity;
 
-  trend.forEach(({ month, value }, index) => {
+  trend.forEach(({ month, value, displayValue }, index) => {
     if (value === null || !Number.isFinite(value)) return;
-    observations.push({ index, month, value });
+    observations.push({ index, month, value, displayValue: displayValue ?? value });
     minimum = Math.min(minimum, value);
     maximum = Math.max(maximum, value);
   });
@@ -58,9 +62,9 @@ function MetricSparkline({ label, unit, monetary, trend }: Pick<Metric, "label" 
 
   const first = observations[0];
   const last = observations[observations.length - 1];
-  const format = (value: number) => unit ? `${formatNumber(value, monetary)} ${unit}` : formatNumber(value, monetary);
+  const format = (value: number) => unit ? `${formatNumber(value, monetary, digits)} ${unit}` : formatNumber(value, monetary, digits);
   const missing = trend.length - observations.length;
-  const description = `${label}趋势，${first.month} ${format(first.value)}，${last.month} ${format(last.value)}${missing ? `，${missing} 个月暂无数据` : ""}`;
+  const description = `${label}趋势，${first.month} ${format(first.displayValue)}，${last.month} ${format(last.displayValue)}${missing ? `，${missing} 个月暂无数据` : ""}`;
 
   return (
     <dd className={styles.metricTrend}>
@@ -107,14 +111,14 @@ function MetricSparkline({ label, unit, monetary, trend }: Pick<Metric, "label" 
 export function MetricCards({ metrics }: { metrics: readonly Metric[] }) {
   return (
     <dl className={styles.metrics}>
-      {metrics.map(({ label, value, unit, monetary, comparison, detail, trend, tone = "blue" }) => (
+      {metrics.map(({ label, value, unit, monetary, digits, comparison, detail, trend, tone = "blue" }) => (
         <div key={label} className={styles.metric} data-tone={tone}>
           <dt>{label}</dt>
           <dd className={styles.metricValue}>
-            <span>{typeof value === "string" ? value : formatNumber(value, monetary)}</span>
+            <span>{typeof value === "string" ? value : formatNumber(value, monetary, digits)}</span>
             {unit && value !== null ? <small>{unit}</small> : null}
           </dd>
-          {trend ? <MetricSparkline label={label} unit={unit} monetary={monetary} trend={trend} /> : null}
+          {trend ? <MetricSparkline label={label} unit={unit} monetary={monetary} digits={digits} trend={trend} /> : null}
           {comparison !== undefined ? (
             <dd className={styles.metricDetail}>
               环比上月 <strong>{comparison == null ? "—" : signedPercent(comparison)}</strong>

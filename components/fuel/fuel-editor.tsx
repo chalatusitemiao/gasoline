@@ -6,6 +6,7 @@ import { Alert, App, Button, Card, Empty, Form, Spin } from "antd";
 import Decimal from "decimal.js";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import {
+  driverLabel,
   fuelRecordInputSchema,
   fuelRecordUpdateSchema,
   type FuelOptions,
@@ -183,13 +184,14 @@ export function FuelEditor({
             <ProFormSelect
               name="driverId"
               label="司机"
-              placeholder="搜索司机"
+              placeholder="搜索姓名或档案编号"
               rules={required}
               showSearch
               options={options.data?.drivers
                 .filter((driver) => driver.isActive || driver.id === record?.driverId)
                 .map((driver) => ({
-                  label: driver.isActive ? driver.name : `${driver.name}（停用）`,
+                  label: `${driverLabel(driver.name, driver.id)}${driver.isActive ? "" : "（停用）"}`,
+                  title: driver.id,
                   value: driver.id,
                 }))}
               fieldProps={{ loading: options.isPending, optionFilterProp: "label" }}
@@ -222,7 +224,7 @@ export function FuelEditor({
             <div><dt>区间油耗</dt><dd>{numberText(consumption)} <small>L/100km</small></dd></div>
           </dl>
           {distance?.lte(0) && (
-            <Alert type="warning" showIcon message="里程表读数未高于上次记录，保存后将标记异常。" className={styles.warning} />
+            <Alert type="warning" showIcon message="里程表读数未高于上次记录，请核对。保存后会标记异常，本次读数仍会用于下一笔区间计算。" className={styles.warning} />
           )}
           <p className={styles.note}>{FULL_TANK_NOTE}</p>
         </ProForm>

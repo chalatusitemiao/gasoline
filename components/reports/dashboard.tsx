@@ -7,17 +7,18 @@ import Link from "next/link";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { apiFetch } from "@/lib/api-client";
-import { monthsInRange, shiftMonth, type FuelAnalytics, type FuelMetrics, type MonthMetrics, type RecentAnomaly } from "@/lib/fuel-analytics";
+import { driverLabel } from "@/lib/fuel";
+import { monthsInRange, shiftMonth, type FuelAnalytics, type FuelMetricKey, type MonthMetrics, type RecentAnomaly } from "@/lib/fuel-analytics";
 import { ConsumptionRanking, CostShare, MetricTrend } from "./report-charts";
 import { FuelCalculationNote, MetricCards, ReportPending, formatNumber, type Metric } from "./report-ui";
-import { metricValue, monthlyMetricTrend } from "./report-values";
+import { metricValue, monthlyMetricTrend, roundedMetricValue } from "./report-values";
 import styles from "./reports.module.css";
 
-const summaryMetrics: readonly (Pick<Metric, "label" | "unit" | "monetary" | "tone"> & {
-  key: keyof FuelMetrics;
+const summaryMetrics: readonly (Pick<Metric, "label" | "unit" | "monetary" | "digits" | "tone"> & {
+  key: FuelMetricKey;
 })[] = [
   { key: "amount", label: "本月油费", unit: "元", monetary: true },
-  { key: "liters", label: "本月加油量", unit: "L" },
+  { key: "liters", label: "本月加油量", unit: "L", digits: 3 },
   { key: "consumption", label: "百公里油耗", unit: "L/100km", tone: "teal" },
   { key: "distance", label: "本月行驶里程", unit: "km", tone: "teal" },
   { key: "anomalies", label: "本月异常记录", unit: "条", tone: "amber" },
@@ -32,7 +33,7 @@ const trendOptions: { label: string; value: TrendMetric }[] = [
   { label: "异常", value: "anomalies" },
 ];
 
-const trendComparisons: Partial<Record<TrendMetric, keyof FuelMetrics>> = {
+const trendComparisons: Partial<Record<TrendMetric, FuelMetricKey>> = {
   liters: "consumption",
   amount: "amountPerKm",
 };
@@ -49,7 +50,7 @@ function decimal(value: string | null) {
 const anomalyColumns: ProColumns<RecentAnomaly>[] = [
   { title: "加油日期", dataIndex: "date", width: 124 },
   { title: "车牌号", dataIndex: "plate", width: 122 },
-  { title: "司机", dataIndex: "driver", ellipsis: true },
+  { title: "司机", width: 180, ellipsis: true, render: (_, row) => <span title={row.driverId}>{driverLabel(row.driver, row.driverId)}</span> },
   {
     title: "里程表（km）",
     align: "right",
@@ -74,7 +75,7 @@ const anomalyColumns: ProColumns<RecentAnomaly>[] = [
     render: (_, row) => {
       if (row.reason === "odometer_not_increased") return <Tag color="orange">里程未增</Tag>;
       if (row.reason === "consumption_high") return <Tag color="red">油耗异常</Tag>;
-      return <Tag color="red">待核实</Tag>;
+      return <Tag color="red">异常</Tag>;
     },
   },
 ];
@@ -112,11 +113,10 @@ function DashboardAnalysis({ report }: { report: FuelAnalytics }) {
   return (
     <>
       <MetricCards metrics={summaryMetrics.map(({ key, ...metric }) => {
-        const value = metricValue(current, key);
         return {
           ...metric,
-          value,
-          comparison: monthOverMonth(value, previous?.[key]),
+          value: roundedMetricValue(current, key),
+          comparison: monthOverMonth(metricValue(current, key), previous?.[key]),
           trend: trend(key),
         };
       })} />
@@ -127,18 +127,19 @@ function DashboardAnalysis({ report }: { report: FuelAnalytics }) {
       <div className={styles.twoCharts}>
         <ConsumptionRanking
           title="本月单车油耗排行"
-          rows={report.vehicles.map(({ plate, consumption }) => ({ label: plate, consumption }))}
-          fleet={current?.consumption}
+          rows={report.vehicles.map((vehicle) => ({ label: vehicle.plate, metrics: vehicle }))}
+          fleet={current}
         />
         <ConsumptionRanking
           title="本月司机油耗排行"
-          rows={report.drivers.map(({ name, consumption }) => ({ label: name, consumption }))}
-          fleet={current?.consumption}
+          rows={report.drivers.map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+          labelWidth={126}
+          fleet={current}
         />
       </div>
       <ProTable<RecentAnomaly>
         className={styles.table}
-        headerTitle="最近待核实异常"
+        headerTitle="最近异常记录"
         toolBarRender={() => [
           <Link key="records" className={styles.tableLink} href="/records?anomaliesOnly=true">
             查看异常记录
@@ -151,8 +152,8 @@ function DashboardAnalysis({ report }: { report: FuelAnalytics }) {
         search={false}
         options={false}
         size="middle"
-        scroll={{ x: 820 }}
-        locale={{ emptyText: "暂无待核实的异常" }}
+        scroll={{ x: 900 }}
+        locale={{ emptyText: "暂无异常记录" }}
       />
       <FuelCalculationNote showCosts />
     </>

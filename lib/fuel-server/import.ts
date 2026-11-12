@@ -17,6 +17,7 @@ import { writeFuel, type FuelActor } from "./shared";
 export const fuelImportSchema = z.object({
   rows: z.array(z.unknown()).min(1, "导入文件没有数据行").max(FUEL_IMPORT_LIMIT),
   fuelType: fuelTypeSchema.default("diesel"),
+  date1904: z.boolean().default(false),
 });
 
 const rawRow = z.object({
@@ -29,16 +30,19 @@ const rawRow = z.object({
   driver: z.string().trim().min(1).max(80).refine((value) => !value.includes("\u0000")),
 });
 
-function excelDate(value: string) {
+function excelDate(value: string, date1904: boolean) {
   const text = value.trim().normalize("NFKC");
   if (/^\d{8}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6)}`;
   const parts = /^(\d{4})(?:[-/.]|年)(\d{1,2})(?:[-/.]|月)(\d{1,2})日?$/.exec(text);
   if (parts) return `${parts[1]}-${parts[2].padStart(2, "0")}-${parts[3].padStart(2, "0")}`;
 
-  if (!/^\d{1,7}$/.test(text)) return text;
-  const serial = Number(text);
-  if (serial < 61 || serial > 2_958_465) return text;
-  return new Date(Date.UTC(1899, 11, 30) + serial * 86_400_000).toISOString().slice(0, 10);
+  const serial = /^(\d{1,7})(?:\.\d+)?$/.exec(text);
+  if (!serial) return text;
+  // The fractional part is a time of day. Take the integer digits without rounding up.
+  const day = Number(serial[1]);
+  if (date1904 ? day > 2_957_003 : day === 0 || day === 60 || day > 2_958_465) return text;
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, day < 60 ? 31 : 30);
+  return new Date(epoch + day * 86_400_000).toISOString().slice(0, 10);
 }
 
 function numberText(value: string) {
@@ -60,7 +64,7 @@ type ParsedRow = {
   odometer: string;
 };
 
-function parseRow(value: unknown, rowNumber: number, today: string): ParsedRow | ImportIssue {
+function parseRow(value: unknown, rowNumber: number, today: string, date1904: boolean): ParsedRow | ImportIssue {
   const raw = rawRow.safeParse(value);
   if (!raw.success) {
     const originalRow = rawRow.pick({ rowNumber: true }).safeParse(value);
@@ -79,15 +83,15 @@ function parseRow(value: unknown, rowNumber: number, today: string): ParsedRow |
   const plate = vehicleInputSchema.shape.plate.safeParse(row.plate);
   if (!plate.success) return { rowNumber: row.rowNumber, message: "车牌格式不正确" };
 
-  const date = fuelDateSchema.safeParse(excelDate(row.date));
+  const date = fuelDateSchema.safeParse(excelDate(row.date, date1904));
   if (!date.success || date.data > today) return { rowNumber: row.rowNumber, message: "加油日期无效或晚于今天" };
 
   const liters = fuelLitersSchema.safeParse(numberText(row.liters));
   const amount = fuelAmountSchema.safeParse(numberText(row.amount));
   const odometer = fuelOdometerSchema.safeParse(numberText(row.odometer));
-  if (!liters.success) return { rowNumber: row.rowNumber, message: "油量须大于 0，最多 3 位小数" };
-  if (!amount.success) return { rowNumber: row.rowNumber, message: "金额须大于 0，最多 2 位小数" };
-  if (!odometer.success) return { rowNumber: row.rowNumber, message: "里程须大于 0，最多 2 位小数" };
+  if (!liters.success) return { rowNumber: row.rowNumber, message: "油量须大于 0，最多 7 位整数、3 位小数" };
+  if (!amount.success) return { rowNumber: row.rowNumber, message: "金额须大于 0，最多 16 位整数、2 位小数" };
+  if (!odometer.success) return { rowNumber: row.rowNumber, message: "里程须大于 0，最多 10 位整数、2 位小数" };
 
   const volume = new FuelDecimal(liters.data);
   const paid = new FuelDecimal(amount.data);
@@ -115,7 +119,7 @@ export async function importFuel(input: z.output<typeof fuelImportSchema>, actor
   const issues: ImportIssue[] = [];
   const valid: ParsedRow[] = [];
   input.rows.forEach((value, index) => {
-    const parsed = parseRow(value, index + 2, today);
+    const parsed = parseRow(value, index + 2, today, input.date1904);
     if ("message" in parsed) issues.push(parsed);
     else valid.push(parsed);
   });

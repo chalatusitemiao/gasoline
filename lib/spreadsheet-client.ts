@@ -14,19 +14,29 @@ function decodeCsv(bytes: ArrayBuffer) {
   }
 }
 
-function cellText(value: unknown): string {
+function cellText(value: unknown, date1904: boolean): string {
   if (value == null) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    const time = value.getTime();
+    if (!Number.isFinite(time)) return "#无效日期";
+    // ExcelJS converts serials 1–60 using the post-leap-bug epoch.
+    // Its February 28 is the fictitious serial 60. Valid earlier dates need one day added.
+    if (!date1904 && time < Date.UTC(1900, 2, 1)) {
+      if (time < Date.UTC(1899, 11, 31) || time >= Date.UTC(1900, 1, 28)) return "#无效日期";
+      return new Date(time + 86_400_000).toISOString().slice(0, 10);
+    }
+    return value.toISOString().slice(0, 10);
+  }
   if (typeof value !== "object") return String(value).trim();
-  if ("result" in value) return cellText(value.result);
-  if ("text" in value) return cellText(value.text);
+  if ("result" in value) return cellText(value.result, date1904);
+  if ("text" in value) return cellText(value.text, date1904);
   if ("richText" in value && Array.isArray(value.richText)) {
     return value.richText.map((part: { text: string }) => part.text).join("").trim();
   }
   return "";
 }
 
-export async function readSheet(file: File): Promise<string[][]> {
+export async function readSheet(file: File): Promise<{ rows: string[][]; date1904: boolean }> {
   const extension = file.name.toLowerCase().split(".").pop();
 
   if (extension === "csv") {
@@ -35,7 +45,7 @@ export async function readSheet(file: File): Promise<string[][]> {
     if (result.errors.some((error) => error.code !== "UndetectableDelimiter")) {
       throw new Error("CSV 格式有误，请检查分隔符和引号。");
     }
-    return result.data.map((row) => row.map((cell) => cell.trim()));
+    return { rows: result.data.map((row) => row.map((cell) => cell.trim())), date1904: false };
   }
 
   if (extension !== "xlsx") throw new Error("请选择 XLSX 或 CSV 文件。");
@@ -43,14 +53,15 @@ export async function readSheet(file: File): Promise<string[][]> {
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
   await workbook.xlsx.load(await file.arrayBuffer());
+  const date1904 = workbook.properties.date1904 === true;
   const sheet = workbook.worksheets[0];
-  if (!sheet) return [];
+  if (!sheet) return { rows: [], date1904 };
 
   const rows: string[][] = [];
   sheet.eachRow({ includeEmpty: true }, (row) => {
-    rows.push(Array.from({ length: row.cellCount }, (_, index) => cellText(row.getCell(index + 1).value)));
+    rows.push(Array.from({ length: row.cellCount }, (_, index) => cellText(row.getCell(index + 1).value, date1904)));
   });
-  return rows;
+  return { rows, date1904 };
 }
 
 export async function downloadSheet(

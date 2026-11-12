@@ -7,13 +7,14 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { apiFetch } from "@/lib/api-client";
+import { driverLabel } from "@/lib/fuel";
 import { monthsInRange, type AnalyticsView, type FuelAnalytics } from "@/lib/fuel-analytics";
 import { downloadSheet } from "@/lib/spreadsheet-client";
 import { ConsumptionRanking, CostShare, MetricRanking, MetricTrend } from "./report-charts";
 import { reportRows } from "./report-export";
 import { CostVehicleTable, DriverTable, VehicleMonthTable } from "./report-tables";
 import { FuelCalculationNote, MetricCards, ReportPending, formatNumber } from "./report-ui";
-import { monthlyMetricTrend, rankDrivers } from "./report-values";
+import { monthlyMetricTrend, rankDrivers, roundedMetricValue } from "./report-values";
 import styles from "./reports.module.css";
 
 type ReportView = Exclude<AnalyticsView, "dashboard">;
@@ -63,9 +64,9 @@ function VehicleReport({ report }: { report: FuelAnalytics }) {
   return (
     <>
       <MetricCards metrics={[
-        { label: "加油量", value: total.liters, unit: "L", trend: trend("liters") },
+        { label: "加油量", value: roundedMetricValue(total, "liters"), unit: "L", digits: 3, trend: trend("liters") },
         { label: "油费", value: total.amount, unit: "元", monetary: true, trend: trend("amount") },
-        { label: "百公里油耗", value: total.consumption, unit: "L/100km", trend: trend("consumption"), tone: "teal" },
+        { label: "百公里油耗", value: roundedMetricValue(total, "consumption"), unit: "L/100km", trend: trend("consumption"), tone: "teal" },
         { label: "行驶里程", value: total.distance, unit: "km", trend: trend("distance") },
         { label: "异常记录", value: total.anomalies, unit: "条", trend: trend("anomalies"), tone: "amber" },
       ]} />
@@ -76,12 +77,12 @@ function VehicleReport({ report }: { report: FuelAnalytics }) {
       <div className={styles.twoCharts}>
         <ConsumptionRanking
           title="车辆百公里油耗对比"
-          rows={vehicles.map(({ plate, consumption }) => ({ label: plate, consumption }))}
-          fleet={total.consumption}
+          rows={vehicles.map((vehicle) => ({ label: vehicle.plate, metrics: vehicle }))}
+          fleet={total}
         />
         <MetricRanking
           title="车辆行驶里程前 10"
-          rows={vehicles.filter(({ distance }) => distance > 0).map(({ plate, distance }) => ({ label: plate, value: distance }))}
+          rows={vehicles.filter(({ distance }) => distance > 0).map((vehicle) => ({ label: vehicle.plate, metrics: vehicle }))}
           metric="distance"
           limit={10}
         />
@@ -101,35 +102,40 @@ function DriverReport({ report }: { report: FuelAnalytics }) {
   return (
     <>
       <MetricCards metrics={[
-        { label: "均值", value: total.consumption, unit: "L/100km", trend: trend("consumption"), tone: "teal" },
+        { label: "均值", value: roundedMetricValue(total, "consumption"), unit: "L/100km", trend: trend("consumption"), tone: "teal" },
         { label: "参与司机", value: drivers.length, unit: "人" },
         {
           label: "最低油耗司机",
-          value: lowest?.name ?? null,
-          detail: lowest ? `${formatNumber(lowest.consumption)} L/100km` : undefined,
+          value: lowest ? driverLabel(lowest.name, lowest.driverId) : null,
+          detail: lowest ? `${formatNumber(roundedMetricValue(lowest, "consumption"))} L/100km` : undefined,
         },
         {
           label: "最高油耗司机",
-          value: highest?.name ?? null,
-          detail: highest ? `${formatNumber(highest.consumption)} L/100km` : undefined,
+          value: highest ? driverLabel(highest.name, highest.driverId) : null,
+          detail: highest ? `${formatNumber(roundedMetricValue(highest, "consumption"))} L/100km` : undefined,
         },
         { label: "异常记录", value: total.anomalies, unit: "条", trend: trend("anomalies"), tone: "amber" },
       ]} />
       <ConsumptionRanking
         title="司机百公里油耗对比"
-        rows={ranked.map(({ name, consumption }) => ({ label: name, consumption }))}
-        fleet={total.consumption}
+        rows={ranked.map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+        labelWidth={126}
+        fleet={total}
       />
       <div className={styles.twoCharts}>
         <MetricRanking
           title="司机行驶里程前 10"
-          rows={drivers.filter(({ distance }) => distance > 0).map(({ name, distance }) => ({ label: name, value: distance }))}
+          rows={drivers.filter(({ distance }) => distance > 0)
+            .map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+          labelWidth={126}
           metric="distance"
           limit={10}
         />
         <MetricRanking
           title="司机异常记录数前 10"
-          rows={drivers.filter(({ anomalies }) => anomalies > 0).map(({ name, anomalies }) => ({ label: name, value: anomalies }))}
+          rows={drivers.filter(({ anomalies }) => anomalies > 0)
+            .map((driver) => ({ label: driverLabel(driver.name, driver.driverId), metrics: driver }))}
+          labelWidth={126}
           metric="anomalies"
           limit={10}
         />
@@ -148,10 +154,10 @@ function CostReport({ report }: { report: FuelAnalytics }) {
     <>
       <MetricCards metrics={[
         { label: "油费合计", value: total.amount, unit: "元", monetary: true, trend: trend("amount") },
-        { label: "每公里油费", value: total.amountPerKm, unit: "元/km", monetary: true, trend: trend("amountPerKm"), tone: "teal" },
-        { label: "平均油价", value: total.averagePrice, unit: "元/L", monetary: true, trend: trend("averagePrice") },
-        { label: "总油量", value: total.liters, unit: "L", trend: trend("liters") },
-        { label: "百公里油耗", value: total.consumption, unit: "L/100km", trend: trend("consumption"), tone: "teal" },
+        { label: "每公里油费", value: roundedMetricValue(total, "amountPerKm"), unit: "元/km", monetary: true, trend: trend("amountPerKm"), tone: "teal" },
+        { label: "平均油价", value: roundedMetricValue(total, "averagePrice"), unit: "元/L", monetary: true, trend: trend("averagePrice") },
+        { label: "总油量", value: roundedMetricValue(total, "liters"), unit: "L", digits: 3, trend: trend("liters") },
+        { label: "百公里油耗", value: roundedMetricValue(total, "consumption"), unit: "L/100km", trend: trend("consumption"), tone: "teal" },
       ]} />
       <div className={styles.analysisGrid}>
         <MetricTrend
@@ -166,13 +172,13 @@ function CostReport({ report }: { report: FuelAnalytics }) {
       <div className={styles.twoCharts}>
         <MetricRanking
           title="车辆每公里油费前 10"
-          rows={vehicles.map(({ plate, amountPerKm }) => ({ label: plate, value: amountPerKm }))}
+          rows={vehicles.map((vehicle) => ({ label: vehicle.plate, metrics: vehicle }))}
           metric="amountPerKm"
           limit={10}
         />
         <MetricRanking
           title="车辆平均油价前 10"
-          rows={vehicles.map(({ plate, averagePrice }) => ({ label: plate, value: averagePrice }))}
+          rows={vehicles.map((vehicle) => ({ label: vehicle.plate, metrics: vehicle }))}
           metric="averagePrice"
           limit={10}
         />
