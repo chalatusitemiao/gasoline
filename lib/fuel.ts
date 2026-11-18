@@ -118,6 +118,7 @@ export type FuelRecord = {
   source: "manual" | "import";
   createdAt: string;
   updatedAt: string;
+  createdById: string;
   createdBy: string;
   updatedBy: string;
 };

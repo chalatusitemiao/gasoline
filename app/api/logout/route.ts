@@ -7,5 +7,5 @@ export async function POST(request: Request) {
     const result = await auth.api.signOut({ headers: request.headers, asResponse: true });
     if (!result.ok) throw new ApiError(500, "退出失败，请重试");
     return apiResponse(200, null, "已退出", authCookieHeaders(result));
-  });
+  }, { permission: null });
 }

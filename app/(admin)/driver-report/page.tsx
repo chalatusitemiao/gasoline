@@ -7,7 +7,7 @@ import { getSystemSettings } from "@/lib/system-settings";
 export const metadata: Metadata = { title: "司机考核" };
 
 export default async function DriverReportPage() {
-  await requirePageSession();
+  await requirePageSession("reports:view");
   const { timeZone } = await getSystemSettings();
   return <MonthlyReport view="drivers" initialMonth={monthInBusinessZone(timeZone)} />;
 }

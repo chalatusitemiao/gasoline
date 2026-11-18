@@ -42,6 +42,7 @@ const selection = {
   vehicleId: fuelRecords.vehicleId,
   isAnomaly: fuelRecords.isAnomaly,
   source: fuelRecords.source,
+  createdById: fuelRecords.createdById,
   createdAt: fuelRecords.createdAt,
   updatedAt: fuelRecords.updatedAt,
   updatedBy: fuelRecords.updatedBy,
@@ -200,6 +201,9 @@ export async function updateRecord(id: string, input: RecordInput & { reason: st
   validateRefuelDate(fields.date, todayInBusinessZone(settings.timeZone));
   return writeFuel(async (tx) => {
     const previous = await findRecord(tx, id);
+    if (!actor.permissions.includes("records:edit:any") && previous.createdById !== actor.id) {
+      throw new ApiError(403, "录入员只能修改自己创建的加油记录");
+    }
     const { vehicle, driver } = await getAssignments(tx, fields, previous.driverId);
     const next = manualAmounts(fields.liters, fields.unitPrice, fields.odometer);
     const samePricing = next.liters === previous.liters && next.unitPrice === previous.unitPrice;

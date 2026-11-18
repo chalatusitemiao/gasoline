@@ -1,11 +1,14 @@
 "use client";
 
 import { createContext, useContext, type ComponentPropsWithoutRef, type ComponentType, type ReactNode } from "react";
+import type { Permission } from "@/lib/permissions";
 
 export type AppLinkProps = Omit<ComponentPropsWithoutRef<"a">, "href"> & { href: string };
 
 export type AppNavigation = {
   pathname: string;
+  userId?: string;
+  permissions?: readonly Permission[];
   Link: ComponentType<AppLinkProps>;
   MenuLink?: ComponentType<AppLinkProps>;
   replace: (href: string) => void;

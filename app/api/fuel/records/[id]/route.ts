@@ -10,7 +10,7 @@ const deletionInput = z.object({
 });
 
 export function GET(request: Request, { params }: Context) {
-  return apiRoute(request, async () => recordDetail(uuid((await params).id)));
+  return apiRoute(request, async () => recordDetail(uuid((await params).id)), { permission: "records:view" });
 }
 
 export function PUT(request: Request, { params }: Context) {
@@ -18,12 +18,12 @@ export function PUT(request: Request, { params }: Context) {
     uuid((await params).id),
     await body(request, fuelRecordUpdateSchema),
     actor,
-  ));
+  ), { permission: "records:edit" });
 }
 
 export function DELETE(request: Request, { params }: Context) {
   return apiRoute(request, async (actor) => {
     const { reason } = await body(request, deletionInput, true);
     return deleteRecord(uuid((await params).id), reason, actor);
-  });
+  }, { permission: "records:delete" });
 }

@@ -5,5 +5,7 @@ import { apiRoute } from "@/lib/server-api";
 type Context = { params: Promise<{ id: string }> };
 
 export function GET(request: Request, { params }: Context) {
-  return apiRoute(request, async () => recentRecords(uuid((await params).id), requestQuery(request)));
+  return apiRoute(request, async () => recentRecords(uuid((await params).id), requestQuery(request)), {
+    permission: "records:view",
+  });
 }

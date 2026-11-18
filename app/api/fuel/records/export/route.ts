@@ -27,5 +27,5 @@ export function GET(request: Request) {
     return new Response(body, {
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" },
     });
-  });
+  }, { permission: "records:export" });
 }

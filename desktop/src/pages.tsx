@@ -3,6 +3,7 @@ import { Result } from "antd";
 import { AdminPage } from "@/components/admin-page";
 import { FuelPage } from "@/components/fuel/ui";
 import { monthInBusinessZone, todayInBusinessZone } from "@/lib/fuel-calendar";
+import { hasPermission, pagePermission, type Permission } from "@/lib/permissions";
 
 const Dashboard = lazy(() => import("@/components/reports/dashboard").then(({ Dashboard }) => ({ default: Dashboard })));
 const FuelEditor = lazy(() => import("@/components/fuel/fuel-editor").then(({ FuelEditor }) => ({ default: FuelEditor })));
@@ -14,8 +15,19 @@ const LedgerImport = lazy(() => import("@/app/(admin)/import/ledger-import").the
 const SystemSettingsPanel = lazy(() => import("@/components/system-settings-form").then(({ SystemSettingsPanel }) => ({ default: SystemSettingsPanel })));
 const CalculationDocs = lazy(() => import("@/app/(admin)/calculation-docs/calculation-docs").then(({ CalculationDocs }) => ({ default: CalculationDocs })));
 const ApiDocs = lazy(() => import("@/app/(admin)/docs/api-docs").then(({ ApiDocs }) => ({ default: ApiDocs })));
+const UserManagement = lazy(() => import("@/components/user-management").then(({ UserManagement }) => ({ default: UserManagement })));
 
-export function DesktopPage({ pathname, search, timeZone }: { pathname: string; search: string; timeZone: string }) {
+export function DesktopPage({ pathname, search, timeZone, permissions }: {
+  pathname: string;
+  search: string;
+  timeZone: string;
+  permissions: readonly Permission[];
+}) {
+  const permission = pagePermission(pathname);
+  if (permission && !hasPermission(permissions, permission)) {
+    return <Result status="403" title="没有访问权限" subTitle="当前账号无权访问此页面。" />;
+  }
+
   switch (pathname) {
     case "/dashboard":
       return <Dashboard />;
@@ -39,6 +51,8 @@ export function DesktopPage({ pathname, search, timeZone }: { pathname: string; 
       return <LedgerImport />;
     case "/settings":
       return <AdminPage title="系统配置"><SystemSettingsPanel /></AdminPage>;
+    case "/users":
+      return <UserManagement />;
     case "/calculation-docs":
       return <CalculationDocs />;
     case "/docs":

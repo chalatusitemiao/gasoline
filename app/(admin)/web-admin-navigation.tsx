@@ -4,6 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WebNavigationProvider } from "@/app/web-navigation";
 import type { AppLinkProps } from "@/components/app-navigation";
+import type { Permission } from "@/lib/permissions";
 import styles from "./admin.module.css";
 
 function NavigationIndicator() {
@@ -43,6 +44,10 @@ function WebMenuLink({ children, ...props }: AppLinkProps) {
   );
 }
 
-export function WebAdminNavigation({ children }: { children: ReactNode }) {
-  return <WebNavigationProvider MenuLink={WebMenuLink}>{children}</WebNavigationProvider>;
+export function WebAdminNavigation({ userId, permissions, children }: {
+  userId: string;
+  permissions: readonly Permission[];
+  children: ReactNode;
+}) {
+  return <WebNavigationProvider MenuLink={WebMenuLink} userId={userId} permissions={permissions}>{children}</WebNavigationProvider>;
 }

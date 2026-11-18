@@ -2,7 +2,7 @@
 
 import { AimOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, Input, InputNumber, Select, Skeleton } from "antd";
+import { Alert, App, Button, Card, Form, InputNumber, Select, Skeleton } from "antd";
 import { useState } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
@@ -10,15 +10,12 @@ import styles from "./system-settings.module.css";
 
 type Settings = {
   authUrl: string;
-  username: string;
   timeZone: string;
   baselineSamples: number;
   anomalyMultiplier: number;
 };
 
-type SettingsValues = Omit<Settings, "authUrl"> & {
-  password?: string;
-};
+type SettingsValues = Omit<Settings, "authUrl">;
 
 type SettingsResult = Settings & { requireLogin?: boolean };
 
@@ -104,11 +101,9 @@ function SystemSettingsForm({
 
     try {
       const payload = {
-        username: values.username,
         timeZone: values.timeZone,
         baselineSamples: values.baselineSamples,
         anomalyMultiplier: values.anomalyMultiplier,
-        password: values.password || undefined,
       };
 
       const updated = await apiFetch<SettingsResult>("/api/settings", jsonRequest("PUT", payload));
@@ -119,11 +114,9 @@ function SystemSettingsForm({
       }
 
       form.setFieldsValue({
-        username: updated.username,
         timeZone: updated.timeZone,
         baselineSamples: updated.baselineSamples,
         anomalyMultiplier: updated.anomalyMultiplier,
-        password: "",
       });
       onSaved(updated);
       message.success("系统配置已保存");
@@ -144,24 +137,6 @@ function SystemSettingsForm({
       initialValues={settings}
       onFinish={save}
     >
-      <Card title="后台账号">
-        <div className={styles.fields}>
-          <Form.Item
-            name="username"
-            label="用户名"
-            rules={[{ required: true, whitespace: true, message: "请输入用户名" }]}
-          >
-            <Input maxLength={128} autoComplete="username" />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="新密码"
-          >
-            <Input.Password maxLength={1024} autoComplete="new-password" placeholder="留空保留当前密码" />
-          </Form.Item>
-        </div>
-      </Card>
-
       <Card title="业务参数">
         <Form.Item
           label="业务时区"

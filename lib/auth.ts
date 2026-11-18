@@ -4,14 +4,16 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDatabaseUrl, getDb } from "./db";
 import { account, session, user, verification } from "./db/schema";
-import { authorizeFuelAccount, fleetAccountId, getRegistrationKey } from "./fuel-credentials";
+import { authorizeFuelAccount, ensureLegacyFuelAccountMigrated, getRegistrationKey } from "./fuel-credentials";
 import { loginErrorMessage, loginSchema } from "./login-contract";
 import { loginPath, returnToHeader } from "./login-path";
+import { hasPermission, isUserRole, permissionsForRole, type Permission } from "./permissions";
 import { getSystemSettings, hasFleetAccount, withSystemSettings } from "./system-settings";
 import { getAuthSecret } from "./system-settings-store";
 
@@ -47,6 +49,11 @@ function createAuth(origin: string, db: Awaited<ReturnType<typeof getDb>>) {
       schema: { user, session, account, verification },
       transaction: true,
     }),
+    user: {
+      additionalFields: {
+        username: { type: "string", required: true, input: false },
+      },
+    },
     advanced: { database: { joins: true } },
     session: { expiresIn: 12 * 60 * 60, disableSessionRefresh: true },
     plugins: [{
@@ -91,7 +98,27 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
   const instance = await getAuth(requestHeaders, requestUrl);
   try {
     const result = await instance.api.getSession({ headers: requestHeaders });
-    return result?.user.id === fleetAccountId ? result : null;
+    if (!result) return null;
+    await ensureLegacyFuelAccountMigrated(result.user.id);
+    const db = await getDb();
+    const [accountUser] = await db.select({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      role: user.role,
+      isActive: user.isActive,
+    }).from(user).where(eq(user.id, result.user.id)).limit(1);
+    if (!accountUser?.isActive || !isUserRole(accountUser.role)) return null;
+    return {
+      ...result,
+      user: {
+        ...result.user,
+        name: accountUser.name,
+        username: accountUser.username,
+        role: accountUser.role,
+        permissions: permissionsForRole(accountUser.role),
+      },
+    };
   } catch {
     // Auth adapter errors can contain the session token as a query parameter.
     throw new Error("登录会话暂时无法读取");
@@ -118,8 +145,11 @@ export async function getSession() {
   return (await getPageSession()).session;
 }
 
-export async function requirePageSession() {
+export async function requirePageSession(requiredPermission?: Permission) {
   const { session } = await getPageSession();
   if (!session) redirect(loginPath((await headers()).get(returnToHeader)));
+  if (requiredPermission && !hasPermission(session.user.permissions, requiredPermission)) {
+    redirect("/dashboard");
+  }
   return session;
 }

@@ -56,7 +56,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
     retry: false,
   });
   const account = session.data;
-  const signedIn = Boolean(account?.name && account.timeZone);
+  const signedIn = Boolean(account?.id && account.name && account.timeZone && account.role);
   const accountPage = pathname === "/login" || pathname === "/register";
   const next = pathname === "/login" ? safeReturnTo(new URLSearchParams(search).get("next")) : homePath;
   const loginNext = pathname === "/" ? homePath : safeReturnTo(location);
@@ -64,7 +64,10 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
   const endSession = useCallback((destination = "/login") => {
     void queryClient.cancelQueries({ queryKey: sessionKey }, { revert: false });
     queryClient.setQueryData<DesktopSession>(sessionKey, (previous) => ({
+      id: null,
       name: null,
+      role: null,
+      permissions: [],
       timeZone: null,
       registrationUnavailable: previous?.registrationUnavailable ?? null,
     }));
@@ -126,6 +129,8 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
   return (
     <AppNavigationProvider navigation={{
       pathname,
+      userId: account.id ?? "",
+      permissions: account.permissions,
       Link: DesktopLink,
       replace: replaceDesktopLocation,
       refresh: () => { void session.refetch(); },
@@ -155,11 +160,11 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
           </Suspense>
         </>
       ) : accountPage || pathname === "/" ? <AdminLoading /> : (
-        <AppQueryProvider key={account.name}>
+        <AppQueryProvider key={account.id}>
           <Suspense fallback={<AdminLoading />}>
-            <AdminShell name={account.name}>
+            <AdminShell name={account.name} permissions={account.permissions}>
               <Suspense fallback={<AdminLoading />}>
-                <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} />
+                <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} />
               </Suspense>
             </AdminShell>
           </Suspense>

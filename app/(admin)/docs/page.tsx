@@ -5,6 +5,6 @@ import { ApiDocs } from "./api-docs";
 export const metadata: Metadata = { title: "接口文档" };
 
 export default async function DocsPage() {
-  await requirePageSession();
+  await requirePageSession("docs:view");
   return <ApiDocs />;
 }

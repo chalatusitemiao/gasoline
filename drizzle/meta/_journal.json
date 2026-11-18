@@ -36,6 +36,13 @@
       "when": 1794464922886,
       "tag": "0004_fuel_anomaly_assessment",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795013017278,
+      "tag": "0005_chilly_warbird",
+      "breakpoints": true
     }
   ]
 }

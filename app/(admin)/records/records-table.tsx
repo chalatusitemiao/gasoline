@@ -5,6 +5,7 @@ import { ProForm, ProFormCheckbox, ProFormSelect, ProFormText, ProTable, type Pr
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Form, Space, Statistic } from "antd";
 import { useState } from "react";
+import { useAppNavigation } from "@/components/app-navigation";
 import {
   AnomalyTag, anomalyText, driverOption, FuelPage, FULL_TANK_NOTE, fuelText, moneyText, numberText,
   QueryError, tablePagination, type Pagination,
@@ -90,6 +91,12 @@ export function RecordsTable({
   anomaliesOnly: boolean;
 }) {
   const { message, modal } = App.useApp();
+  const { userId, permissions = [] } = useAppNavigation();
+  const canEditAny = permissions.includes("records:edit:any");
+  const canEditOwn = permissions.includes("records:edit");
+  const canDelete = permissions.includes("records:delete");
+  const canExport = permissions.includes("records:export");
+  const canViewDeletions = permissions.includes("records:deletions:view");
   const queryClient = useQueryClient();
   const [form] = Form.useForm<Filters>();
   const [pagination, setPagination] = useState({ page: 1, pageSize: FUEL_PAGE_SIZE });
@@ -179,8 +186,10 @@ export function RecordsTable({
       render: (_, row) => (
         <Space size={0}>
           <Button size="small" type="link" onClick={() => setDrawer({ id: row.id, editing: false })}>详情</Button>
-          <Button size="small" type="link" onClick={() => setDrawer({ id: row.id, editing: true })}>修改</Button>
-          <Button size="small" type="link" danger onClick={() => confirmDelete(row)}>删除</Button>
+          {(canEditAny || canEditOwn && row.createdById === userId) && (
+            <Button size="small" type="link" onClick={() => setDrawer({ id: row.id, editing: true })}>修改</Button>
+          )}
+          {canDelete && <Button size="small" type="link" danger onClick={() => confirmDelete(row)}>删除</Button>}
         </Space>
       ),
     },
@@ -189,8 +198,8 @@ export function RecordsTable({
   return (
     <FuelPage title="加油记录" actions={
       <Space wrap>
-        <Button icon={<HistoryOutlined />} onClick={() => setLogOpen(true)}>删除日志</Button>
-        <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => { void exportRecords(); }}>导出明细</Button>
+        {canViewDeletions && <Button icon={<HistoryOutlined />} onClick={() => setLogOpen(true)}>删除日志</Button>}
+        {canExport && <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => { void exportRecords(); }}>导出明细</Button>}
       </Space>
     }>
       <Card className={shared.section}>

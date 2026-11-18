@@ -3,5 +3,7 @@ import { body } from "@/lib/fuel-server/shared";
 import { apiRoute } from "@/lib/server-api";
 
 export function POST(request: Request) {
-  return apiRoute(request, async () => importVehicles(await body(request, vehicleImportSchema)));
+  return apiRoute(request, async () => importVehicles(await body(request, vehicleImportSchema)), {
+    permission: "archives:import",
+  });
 }

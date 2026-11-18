@@ -8,7 +8,7 @@ import { FuelPage } from "@/components/fuel/ui";
 export const metadata: Metadata = { title: "录入加油" };
 
 export default async function RefuelPage() {
-  await requirePageSession();
+  await requirePageSession("records:create");
   const { timeZone } = await getSystemSettings();
 
   return (

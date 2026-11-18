@@ -29,7 +29,7 @@ const response = (description: string, data: Record<string, unknown>, code = 0) 
 const errors = {
   400: response("请求参数无效", { type: "null" }, 400),
   401: response("账号或密码错误，或需要登录", { type: "null" }, 401),
-  403: response("请求来源不受信任", { type: "null" }, 403),
+  403: response("请求来源不受信任或账号无此权限", { type: "null" }, 403),
   404: response("记录不存在", { type: "null" }, 404),
   409: response("档案冲突或仍有历史记录", { type: "null" }, 409),
   500: response("服务端处理失败", { type: "null" }, 500),
@@ -69,24 +69,40 @@ const recordExportFields = {
 };
 const cookie = { type: "apiKey", in: "cookie", "x-scalar-ignore": true };
 const boolean = { type: "boolean" };
+const userRole = { type: "string", enum: ["admin", "operator", "viewer"] };
+const permission = {
+  type: "string",
+  enum: [
+    "dashboard:view", "records:view", "records:create", "records:edit", "records:edit:any",
+    "records:delete", "records:import", "records:export", "records:deletions:view",
+    "reports:view", "reports:export", "archives:view", "archives:manage", "archives:import",
+    "settings:manage", "users:manage", "docs:view",
+  ],
+};
 const systemSettings = {
   authUrl: { ...string, description: "站点源地址，留空自动使用访问地址" },
-  username: { ...string, minLength: 1, maxLength: 128 },
+  username: { ...string, readOnly: true, description: "当前登录账号。供旧版 Windows 客户端兼容使用" },
   timeZone: { ...string, description: "IANA 业务时区，如 Asia/Shanghai" },
   baselineSamples: { ...integer, minimum: 2, maximum: 100, default: 5 },
   anomalyMultiplier: { type: "number", minimum: 1, maximum: 100, default: 1.3 },
 };
 const systemSettingsInput = {
-  ...systemSettings,
   authUrl: { ...string, description: "省略时保留已有值，传空字符串时使用当前访问地址" },
-  password: { ...string, format: "password", description: "后台登录密码，留空保留现有密码" },
+  timeZone: systemSettings.timeZone,
+  baselineSamples: systemSettings.baselineSamples,
+  anomalyMultiplier: systemSettings.anomalyMultiplier,
 };
-const settingsRequired = ["username", "timeZone", "baselineSamples", "anomalyMultiplier"];
+const settingsRequired = ["timeZone", "baselineSamples", "anomalyMultiplier"];
 const settingsSaved = object({ ...systemSettings, requireLogin: boolean });
 const credentials = {
-  username: systemSettings.username,
+  username: { ...string, minLength: 1, maxLength: 128 },
   password: { ...string, format: "password", minLength: 1, maxLength: 1024, writeOnly: true },
 };
+const userFields = {
+  id: string, name: string, username: string, role: userRole, isActive: boolean,
+  createdAt: { ...string, format: "date-time" },
+};
+const userIdPath = { name: "id", in: "path", required: true, schema: string };
 const fuelMetrics = {
   count: integer,
   liters: number,
@@ -109,14 +125,14 @@ export const openApiDocument = {
   info: {
     title: "车辆监控接口",
     version: "0.1.0",
-    description: "登录与注册使用同源请求，其余接口使用 HttpOnly 会话 Cookie。接口统一返回 code、data、message。",
+    description: "登录与初始注册使用同源请求，其余接口使用 HttpOnly 会话 Cookie。管理员、录入员和只读人员按权限调用接口。接口统一返回 code、data、message。",
   },
   servers: [{ url: "/" }],
   security: [{ sessionCookie: [] }, { secureSessionCookie: [] }],
   paths: {
     "/api/login": {
       post: {
-        tags: ["会话"], summary: "单账号登录",
+        tags: ["会话"], summary: "账号登录",
         description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。",
         security: [],
         requestBody: requestBody(object(credentials, ["username", "password"])),
@@ -130,13 +146,51 @@ export const openApiDocument = {
     "/api/logout": {
       post: { tags: ["会话"], summary: "退出登录", responses: replies({ type: "null" }) },
     },
+    "/api/me": {
+      get: {
+        tags: ["会话"], summary: "读取当前账号和权限",
+        responses: replies(ref("CurrentUser")),
+      },
+    },
+    "/api/users": {
+      get: {
+        tags: ["账号管理"], summary: "查询账号列表",
+        responses: replies(array(ref("User"))),
+      },
+      post: {
+        tags: ["账号管理"], summary: "新增账号",
+        requestBody: requestBody(object({
+          username: { ...string, minLength: 1, maxLength: 128 },
+          password: { ...string, format: "password", minLength: 8, maxLength: 1024, writeOnly: true },
+          role: userRole,
+        }, ["username", "password", "role"])),
+        responses: { ...replies(ref("User"), 201), 409: response("登录账号已存在", { type: "null" }, 409) },
+      },
+    },
+    "/api/users/{id}": {
+      put: {
+        tags: ["账号管理"], summary: "修改账号角色、状态或重置密码",
+        parameters: [userIdPath],
+        requestBody: requestBody(object({
+          role: userRole,
+          isActive: boolean,
+          password: { ...string, format: "password", minLength: 8, maxLength: 1024, writeOnly: true },
+        }, ["role", "isActive"])),
+        responses: {
+          ...replies(ref("User")),
+          404: response("账号不存在", { type: "null" }, 404),
+          409: response("至少保留一名有效管理员", { type: "null" }, 409),
+        },
+      },
+    },
     "/api/register": {
       post: {
-        tags: ["会话"], summary: "注册后台账号",
-        description: "尚无后台账号时，使用部署环境的 REGISTRATION_KEY 注册。用户记录和系统配置在同一笔数据库事务中保存。提交后尝试建立登录会话，自动登录失败时可手动登录。",
+        tags: ["会话"], summary: "注册首个管理员账号",
+        description: "尚无后台账号时，使用部署环境的 REGISTRATION_KEY 注册首个管理员。密码至少 8 位。",
         security: [],
         requestBody: requestBody(object({
           ...credentials,
+          password: { ...credentials.password, minLength: 8 },
           registrationKey: { ...string, format: "password", minLength: 1, maxLength: 1024, writeOnly: true },
         }, ["username", "password", "registrationKey"])),
         responses: {
@@ -149,11 +203,13 @@ export const openApiDocument = {
     },
     "/api/settings": {
       get: {
-        tags: ["系统配置"], summary: "读取系统配置",
+        tags: ["系统配置"], summary: "读取系统配置或旧客户端所需的账号信息",
+        description: "管理员可读取完整配置。其他已登录账号只会得到当前用户名和业务时区。",
         responses: replies(object(systemSettings)),
       },
       put: {
         tags: ["系统配置"], summary: "保存系统配置",
+        description: "仅管理员可操作。账号密码通过账号管理单独维护。",
         requestBody: requestBody(object(systemSettingsInput, settingsRequired)),
         responses: { ...replies(settingsSaved), 409: response("系统配置已更新", { type: "null" }, 409) },
       },
@@ -340,6 +396,16 @@ export const openApiDocument = {
       secureSessionCookie: { ...cookie, name: "__Secure-better-auth.session_token" },
     },
     schemas: {
+      UserRole: userRole,
+      Permission: permission,
+      User: object(userFields, ["id", "name", "username", "role", "isActive", "createdAt"]),
+      CurrentUser: object({
+        id: string,
+        name: string,
+        role: userRole,
+        permissions: array(permission),
+        timeZone: string,
+      }, ["id", "name", "role", "permissions", "timeZone"]),
       FuelMonthMetrics: object({ ...fuelMetrics, month }),
       VehicleInput: object({ plate: string, fuelType, notes: string }, ["plate", "fuelType"]),
       Vehicle: object({
@@ -358,6 +424,7 @@ export const openApiDocument = {
       FuelRecordExportRow: object(recordExportFields),
       FuelRecord: object({
         ...recordExportFields, id: uuid, vehicleId: uuid,
+        createdById: string,
         isAnomaly: { type: "boolean" },
         source: { type: "string", enum: ["manual", "import"] },
         updatedBy: string, createdAt: string, updatedAt: string,

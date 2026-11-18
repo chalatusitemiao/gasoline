@@ -6,6 +6,7 @@ import { App, Button, DatePicker, Select } from "antd";
 import dayjs from "dayjs";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
+import { useAppNavigation } from "@/components/app-navigation";
 import { apiFetch } from "@/lib/api-client";
 import { monthsInRange, type AnalyticsView, type FuelAnalytics } from "@/lib/fuel-analytics";
 import { downloadSheet } from "@/lib/spreadsheet-client";
@@ -189,6 +190,7 @@ function CostReport({ report }: { report: FuelAnalytics }) {
 
 export function MonthlyReport({ view, initialMonth }: { view: ReportView; initialMonth: string }) {
   const { message } = App.useApp();
+  const { permissions = [] } = useAppNavigation();
   const currentMonth = dayjs(`${initialMonth}-01`);
   const threeMonthStart = currentMonth.subtract(2, "month");
   const [range, setRange] = useState({
@@ -247,14 +249,16 @@ export function MonthlyReport({ view, initialMonth }: { view: ReportView; initia
               }}
             />
           </div>
-          <Button
-            icon={<DownloadOutlined />}
-            disabled={!report}
-            loading={exporting}
-            onClick={() => { void exportReport(); }}
-          >
-            导出 Excel
-          </Button>
+          {permissions.includes("reports:export") && (
+            <Button
+              icon={<DownloadOutlined />}
+              disabled={!report}
+              loading={exporting}
+              onClick={() => { void exportReport(); }}
+            >
+              导出 Excel
+            </Button>
+          )}
         </>
       )}
     >

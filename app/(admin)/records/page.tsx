@@ -11,7 +11,7 @@ export default async function RecordsPage({
 }: {
   searchParams: Promise<{ anomaliesOnly?: string | string[] }>;
 }) {
-  await requirePageSession();
+  await requirePageSession("records:view");
   const [{ anomaliesOnly }, { timeZone }] = await Promise.all([searchParams, getSystemSettings()]);
   const showAnomalies = anomaliesOnly === "true";
   return (

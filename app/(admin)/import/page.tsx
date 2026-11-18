@@ -5,6 +5,6 @@ import { LedgerImport } from "./ledger-import";
 export const metadata: Metadata = { title: "数据导入" };
 
 export default async function LedgerImportPage() {
-  await requirePageSession();
+  await requirePageSession("records:import");
   return <LedgerImport />;
 }

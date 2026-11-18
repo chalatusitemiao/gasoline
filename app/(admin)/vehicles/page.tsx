@@ -6,6 +6,6 @@ import { VehicleImport } from "./vehicle-import";
 export const metadata: Metadata = { title: "车辆档案" };
 
 export default async function VehiclesPage() {
-  await requirePageSession();
+  await requirePageSession("archives:view");
   return <ArchiveManager kind="vehicles" extraAction={<VehicleImport />} />;
 }

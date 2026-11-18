@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button, Divider, Drawer, Skeleton, Timeline } from "antd";
 import { lazy, Suspense } from "react";
+import { useAppNavigation } from "@/components/app-navigation";
 import { FULL_TANK_NOTE, fuelText, QueryError, stampText } from "@/components/fuel/ui";
 import shared from "@/components/fuel/ui.module.css";
 import { apiFetch } from "@/lib/api-client";
@@ -47,6 +48,7 @@ export function RecordDrawer({
   onCancelEdit: () => void;
   onClose: () => void;
 }) {
+  const { userId, permissions = [] } = useAppNavigation();
   const detail = useQuery({
     queryKey: ["fuel", "record", id],
     enabled: Boolean(id),
@@ -54,6 +56,8 @@ export function RecordDrawer({
   });
   const record = detail.data?.record;
   const changes = detail.data?.changes ?? [];
+  const canEdit = permissions.includes("records:edit:any") ||
+    permissions.includes("records:edit") && record?.createdById === userId;
 
   return (
     <Drawer
@@ -62,7 +66,7 @@ export function RecordDrawer({
       open={Boolean(id)}
       onClose={onClose}
       destroyOnHidden
-      extra={record && !editing && <Button onClick={onEdit}>修改记录</Button>}
+      extra={record && !editing && canEdit && <Button onClick={onEdit}>修改记录</Button>}
     >
       {detail.error && <QueryError error={detail.error} retry={() => { void detail.refetch(); }} />}
       {!record && detail.isFetching && <Skeleton active />}

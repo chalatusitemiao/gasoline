@@ -1,14 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ApiResponse } from "@/lib/api";
 import { apiRequest, ApiClientError, configureApiTransport } from "@/lib/api-client";
+import type { Permission, UserRole } from "@/lib/permissions";
 
 export const serverStorageKey = "gasoline.desktop.server";
 export const sessionExpiredEvent = "gasoline:session-expired";
 
 type NativeResponse = { status: number; body: string; contentType: string | null };
-type AccountSettings = { username: string; timeZone: string };
+type AccountSettings = { id: string; name: string; role: UserRole; permissions: Permission[]; timeZone: string };
 export type DesktopSession = {
+  id: string | null;
   name: string | null;
+  role: UserRole | null;
+  permissions: Permission[];
   timeZone: string | null;
   registrationUnavailable: string | null;
 };
@@ -66,19 +70,26 @@ configureApiTransport({
 });
 
 async function readSession(signal: AbortSignal): Promise<DesktopSession> {
-  // The settings endpoint already checks the session and returns the account and business timezone.
-  const response = await apiRequest("/api/settings", { signal, cache: "no-store" });
+  const response = await apiRequest("/api/me", { signal, cache: "no-store" });
   const result = await response.json().catch(() => null) as ApiResponse<AccountSettings> | null;
   if (response.status === 401 && result?.code === 401 && result.data === null) {
-    return { name: null, timeZone: null, registrationUnavailable: null };
+    return { id: null, name: null, role: null, permissions: [], timeZone: null, registrationUnavailable: null };
   }
   const settings = result?.data;
-  if (!response.ok || result?.code !== 0 || !settings || typeof settings.username !== "string" ||
-      typeof settings.timeZone !== "string") {
+  if (!response.ok || result?.code !== 0 || !settings || typeof settings.id !== "string" ||
+      typeof settings.name !== "string" || typeof settings.role !== "string" ||
+      !Array.isArray(settings.permissions) || typeof settings.timeZone !== "string") {
     const message = !response.ok && typeof result?.message === "string" ? result.message : "该地址未返回车辆监控接口数据";
     throw new ApiClientError(message, response.status);
   }
-  return { name: settings.username, timeZone: settings.timeZone, registrationUnavailable: "系统已有后台账号，请直接登录。" };
+  return {
+    id: settings.id,
+    name: settings.name,
+    role: settings.role,
+    permissions: settings.permissions,
+    timeZone: settings.timeZone,
+    registrationUnavailable: "系统已有后台账号，请直接登录。",
+  };
 }
 
 export async function loadSession(server: string, signal: AbortSignal) {

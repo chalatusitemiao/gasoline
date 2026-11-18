@@ -3,14 +3,14 @@ import { getAuth } from "@/lib/auth";
 import { getDatabaseUrl, getDb } from "@/lib/db";
 import { getRegistrationKey, matchesRegistrationKey, upsertFleetUser } from "@/lib/fuel-credentials";
 import { body } from "@/lib/fuel-server/shared";
-import { loginSchema } from "@/lib/login-contract";
+import { loginSchema, registrationCredentialsSchema } from "@/lib/login-contract";
 import { apiFailure, ApiError, apiResponse, authCookieHeaders, requireSameOrigin } from "@/lib/server-api";
 import { getSystemSettingsSnapshot, hasFleetAccount, hashSettingsPassword, withSystemSettings } from "@/lib/system-settings";
 import { SettingsConflictError, writeStoredSettings } from "@/lib/system-settings-store";
 
 const registrationSchema = loginSchema.extend({
   registrationKey: z.string().trim().min(1, "请输入注册密钥").max(1024),
-});
+}).extend({ password: registrationCredentialsSchema.shape.password });
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       const db = await getDb();
       await db.transaction(async (tx) => {
         await writeStoredSettings({ ...settings, username, passwordHash }, revision, tx);
-        await upsertFleetUser(tx, username);
+        await upsertFleetUser(tx, username, passwordHash);
       });
       return { username, password };
     });

@@ -5,6 +5,7 @@ import { ModalForm, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Form, Input, Space, Tag, Tooltip } from "antd";
 import { useState, type ReactNode } from "react";
+import { useAppNavigation } from "@/components/app-navigation";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import { driverInputSchema, FUEL_PAGE_SIZE, vehicleInputSchema, type Driver, type FuelPage as PageData, type FuelType, type Vehicle } from "@/lib/fuel";
 import { FUEL_OPTIONS, FuelPage, fuelText, numberText, QueryError, tablePagination } from "./ui";
@@ -64,6 +65,9 @@ export function ArchiveManager({
   const vehicle = kind === "vehicles";
   const label = vehicle ? "车辆" : "司机";
   const { message, modal } = App.useApp();
+  const { permissions = [] } = useAppNavigation();
+  const canManage = permissions.includes("archives:manage");
+  const canImport = permissions.includes("archives:import");
   const queryClient = useQueryClient();
   const [form] = Form.useForm<Fields>();
   const [pagination, setPagination] = useState({ page: 1, pageSize: FUEL_PAGE_SIZE });
@@ -138,10 +142,10 @@ export function ArchiveManager({
 
   const columns: ProColumns<ArchiveRow>[] = [
     ...(vehicle ? vehicleColumns : driverColumns),
-    {
+    ...(canManage ? [{
       title: "操作",
       width: 115,
-      render: (_, row) => {
+      render: (_: unknown, row: ArchiveRow) => {
         const linked = (row.refuelCount ?? 0) > 0;
         return (
           <Space size={0}>
@@ -154,14 +158,14 @@ export function ArchiveManager({
           </Space>
         );
       },
-    },
+    }] : []),
   ];
 
   return (
     <FuelPage title={`${label}档案`} actions={
       <Space wrap>
-        {extraAction}
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditor({})}>新增{label}</Button>
+        {canImport && extraAction}
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditor({})}>新增{label}</Button>}
       </Space>
     }>
       {list.error && <QueryError error={list.error} retry={() => { void list.refetch(); }} />}

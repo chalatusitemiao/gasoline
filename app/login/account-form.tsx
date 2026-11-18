@@ -7,7 +7,7 @@ import { useRef, useState, useTransition } from "react";
 import { AppLink, useAppNavigation } from "@/components/app-navigation";
 import { BrandMark } from "@/components/brand-mark";
 import { ApiClientError, apiFetch, jsonRequest } from "@/lib/api-client";
-import { loginErrorMessage, loginSchema } from "@/lib/login-contract";
+import { loginErrorMessage, loginSchema, registrationCredentialsSchema } from "@/lib/login-contract";
 import styles from "./login.module.css";
 
 type AccountFields = {
@@ -73,7 +73,8 @@ function AccountForm(props: AccountFormProps) {
     // Autofill can change the inputs without updating the form library's values.
     const form = formRef.current?.nativeElement;
     const fields = form instanceof HTMLFormElement ? new FormData(form) : null;
-    const credentials = loginSchema.safeParse({
+    const schema = isRegistration ? registrationCredentialsSchema : loginSchema;
+    const credentials = schema.safeParse({
       username: fields?.get("username") ?? values.username,
       password: fields?.get("password") ?? values.password,
     });

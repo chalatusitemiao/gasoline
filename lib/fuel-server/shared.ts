@@ -4,9 +4,10 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { FUEL_PAGE_SIZE } from "@/lib/fuel";
+import type { Permission, UserRole } from "@/lib/permissions";
 import { ApiError } from "@/lib/server-api";
 
-export type FuelActor = { id: string; name: string };
+export type FuelActor = { id: string; name: string; role: UserRole; permissions: readonly Permission[] };
 type FuelDb = Awaited<ReturnType<typeof getDb>>;
 export type FuelTx = Parameters<Parameters<FuelDb["transaction"]>[0]>[0];
 export type FuelReadDb = Pick<FuelDb, "select">;

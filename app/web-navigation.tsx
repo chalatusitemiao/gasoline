@@ -9,13 +9,20 @@ function WebLink(props: AppLinkProps) {
   return <Link {...props} />;
 }
 
-export function WebNavigationProvider({ MenuLink, children }: { MenuLink?: AppNavigation["MenuLink"]; children: ReactNode }) {
+export function WebNavigationProvider({ MenuLink, userId, permissions, children }: {
+  MenuLink?: AppNavigation["MenuLink"];
+  userId?: string;
+  permissions?: AppNavigation["permissions"];
+  children: ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
 
   return (
     <AppNavigationProvider navigation={{
       pathname,
+      userId,
+      permissions,
       Link: WebLink,
       MenuLink,
       replace: (href) => router.replace(href),

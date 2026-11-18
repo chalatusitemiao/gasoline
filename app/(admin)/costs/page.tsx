@@ -7,7 +7,7 @@ import { getSystemSettings } from "@/lib/system-settings";
 export const metadata: Metadata = { title: "成本表" };
 
 export default async function CostsPage() {
-  await requirePageSession();
+  await requirePageSession("reports:view");
   const { timeZone } = await getSystemSettings();
   return <MonthlyReport view="costs" initialMonth={monthInBusinessZone(timeZone)} />;
 }

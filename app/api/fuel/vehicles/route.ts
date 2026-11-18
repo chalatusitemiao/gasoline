@@ -4,9 +4,12 @@ import { body, requestQuery } from "@/lib/fuel-server/shared";
 import { apiRoute } from "@/lib/server-api";
 
 export function GET(request: Request) {
-  return apiRoute(request, () => listVehicles(requestQuery(request)));
+  return apiRoute(request, () => listVehicles(requestQuery(request)), { permission: "archives:view" });
 }
 
 export function POST(request: Request) {
-  return apiRoute(request, async () => saveVehicle(await body(request, vehicleInputSchema)), { status: 201 });
+  return apiRoute(request, async () => saveVehicle(await body(request, vehicleInputSchema)), {
+    status: 201,
+    permission: "archives:manage",
+  });
 }

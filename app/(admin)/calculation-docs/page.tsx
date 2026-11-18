@@ -5,6 +5,6 @@ import { CalculationDocs } from "./calculation-docs";
 export const metadata: Metadata = { title: "计算文档" };
 
 export default async function CalculationDocsPage() {
-  await requirePageSession();
+  await requirePageSession("docs:view");
   return <CalculationDocs />;
 }

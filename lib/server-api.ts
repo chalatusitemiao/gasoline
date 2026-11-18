@@ -1,15 +1,12 @@
 import "server-only";
 
+import { ApiError } from "./api-error";
 import { getAuthOrigin, getRequestSession } from "./auth";
+import { hasPermission, type Permission, type UserRole } from "./permissions";
 import { withSystemSettings } from "./system-settings";
 
-export type ApiActor = { id: string; name: string };
-
-export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
+export type ApiActor = { id: string; name: string; role: UserRole; permissions: readonly Permission[] };
+export { ApiError } from "./api-error";
 
 export function apiResponse(status: number, data: unknown, message: string, extra?: Headers) {
   const headers = new Headers(extra);
@@ -54,14 +51,25 @@ export function apiFailure(error: unknown) {
 export async function apiRoute<T>(
   request: Request,
   handle: (actor: ApiActor) => Promise<T>,
-  options: { status?: number } = {},
+  options: { status?: number; permission?: Permission | null } = {},
 ) {
   return withSystemSettings(async () => {
     try {
       const session = await getRequestSession(request.headers, request.url);
       if (!session) return unauthorizedResponse();
       if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) await requireSameOrigin(request);
-      const result = await handle({ id: session.user.id, name: session.user.name });
+      const permission = options.permission === undefined
+        ? ["GET", "HEAD", "OPTIONS"].includes(request.method) ? "records:view" : "records:create"
+        : options.permission;
+      if (permission && !hasPermission(session.user.permissions, permission)) {
+        return apiResponse(403, null, "当前账号没有执行此操作的权限");
+      }
+      const result = await handle({
+        id: session.user.id,
+        name: session.user.name,
+        role: session.user.role,
+        permissions: session.user.permissions,
+      });
       return result instanceof Response ? result : apiResponse(options.status ?? 200, result, "操作成功");
     } catch (error) {
       return apiFailure(error);

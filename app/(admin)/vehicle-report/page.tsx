@@ -7,7 +7,7 @@ import { getSystemSettings } from "@/lib/system-settings";
 export const metadata: Metadata = { title: "单车月报" };
 
 export default async function VehicleReportPage() {
-  await requirePageSession();
+  await requirePageSession("reports:view");
   const { timeZone } = await getSystemSettings();
   return <MonthlyReport view="vehicles" initialMonth={monthInBusinessZone(timeZone)} />;
 }

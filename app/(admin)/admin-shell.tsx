@@ -25,6 +25,7 @@ import { useState, type ReactNode } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
 import { BrandMark } from "@/components/brand-mark";
 import { apiFetch } from "@/lib/api-client";
+import { hasPermission, pagePermission, type Permission } from "@/lib/permissions";
 import styles from "./admin.module.css";
 
 type NavigationItem = {
@@ -66,17 +67,13 @@ const navigation: NavigationItem[] = [
     ],
   },
   { path: "/settings", name: "系统配置", icon: <SettingOutlined /> },
+  { path: "/users", name: "账号管理", icon: <TeamOutlined /> },
 ];
 
 const headerPages = [
   { path: "/docs", name: "接口文档", icon: <BookOutlined /> },
   { path: "/calculation-docs", name: "计算文档", icon: <CalculatorOutlined /> },
 ];
-
-const routes = {
-  path: "/",
-  children: navigation,
-};
 
 // Ant Design Pro: config/defaultSettings.ts and src/app.tsx.
 const layoutSettings = {
@@ -97,9 +94,11 @@ const layoutSettings = {
 export function AdminShell({
   children,
   name,
+  permissions,
 }: {
   children: ReactNode;
   name: string;
+  permissions: readonly Permission[];
 }) {
   const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
   const { message } = App.useApp();
@@ -108,6 +107,23 @@ export function AdminShell({
   const section = navigation.find((item) => item.children?.some((child) => child.path === currentPath));
   const page = headerPages.find((item) => item.path === currentPath)
     ?? (section?.children ?? navigation).find((item) => item.path === currentPath);
+  const availableNavigation = navigation.flatMap((item) => {
+    if (item.children) {
+      const children = item.children.filter((child) => {
+        const permission = pagePermission(child.path);
+        return permission !== null && hasPermission(permissions, permission);
+      });
+      return children.length ? [{ ...item, children }] : [];
+    }
+
+    const permission = pagePermission(item.path);
+    return permission !== null && hasPermission(permissions, permission) ? [item] : [];
+  });
+  const availableHeaderPages = headerPages.filter((item) => {
+    const permission = pagePermission(item.path);
+    return permission !== null && hasPermission(permissions, permission);
+  });
+  const routes = { path: "/", children: availableNavigation };
 
   async function signOut() {
     setSigningOut(true);
@@ -171,7 +187,7 @@ export function AdminShell({
           )
           : defaultDom
       }
-      actionsRender={() => headerPages.map(({ path, name, icon }) => (
+      actionsRender={() => availableHeaderPages.map(({ path, name, icon }) => (
         <MenuLink
           key={path}
           href={path}

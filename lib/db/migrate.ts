@@ -4,8 +4,10 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool, type PoolClient } from "pg";
 
+const connectionTimeoutMillis = 15_000;
+
 async function verifyMigrationTarget(migration: PoolClient, applicationUrl: string) {
-  const application = new Client({ connectionString: applicationUrl, connectionTimeoutMillis: 5_000, query_timeout: 5_000 });
+  const application = new Client({ connectionString: applicationUrl, connectionTimeoutMillis, query_timeout: 5_000 });
   const probe = randomBytes(8).readBigInt64BE().toString();
   try {
     await migration.query("SELECT pg_advisory_xact_lock($1::bigint)", [probe]);
@@ -23,7 +25,7 @@ async function verifyMigrationTarget(migration: PoolClient, applicationUrl: stri
 }
 
 export async function migrateDatabase(connectionString: string, applicationUrl: string) {
-  const pool = new Pool({ connectionString, max: 2, connectionTimeoutMillis: 5_000 });
+  const pool = new Pool({ connectionString, max: 2, connectionTimeoutMillis });
   try {
     const lock = await pool.connect();
     try {

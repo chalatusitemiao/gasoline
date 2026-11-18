@@ -4,11 +4,12 @@ import { body, requestQuery } from "@/lib/fuel-server/shared";
 import { apiRoute } from "@/lib/server-api";
 
 export function GET(request: Request) {
-  return apiRoute(request, () => listRecords(requestQuery(request)));
+  return apiRoute(request, () => listRecords(requestQuery(request)), { permission: "records:view" });
 }
 
 export function POST(request: Request) {
   return apiRoute(request, async (actor) => createRecord(await body(request, fuelRecordInputSchema), actor), {
     status: 201,
+    permission: "records:create",
   });
 }

@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { UserRole } from "../permissions";
 
 export * from "./fuel-schema";
 export * from "./auth-guard-schema";
@@ -13,11 +14,26 @@ export const systemSettingsTable = pgTable("system_settings", {
 export const user = pgTable("users", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  username: text("username").notNull().unique(),
+  role: text("role").$type<UserRole>().default("viewer").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const userCredential = pgTable("user_credentials", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const authMigrationState = pgTable("auth_migration_state", {
+  id: text("id").primaryKey(),
+  legacyCredentialsMigrated: boolean("legacy_credentials_migrated").default(false).notNull(),
 });
 
 export const session = pgTable("sessions", {

@@ -9,8 +9,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <AppQueryProvider key={session.user.id}>
-      <WebAdminNavigation>
-        <AdminShell name={session.user.name}>{children}</AdminShell>
+      <WebAdminNavigation userId={session.user.id} permissions={session.user.permissions}>
+        <AdminShell name={session.user.name} permissions={session.user.permissions}>{children}</AdminShell>
       </WebAdminNavigation>
     </AppQueryProvider>
   );

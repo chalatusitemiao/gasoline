@@ -6,13 +6,15 @@ import { apiRoute } from "@/lib/server-api";
 type Context = { params: Promise<{ id: string }> };
 
 export function GET(request: Request, { params }: Context) {
-  return apiRoute(request, async () => getDriver(uuid((await params).id)));
+  return apiRoute(request, async () => getDriver(uuid((await params).id)), { permission: "archives:view" });
 }
 
 export function PUT(request: Request, { params }: Context) {
-  return apiRoute(request, async () => saveDriver(await body(request, driverInputSchema), uuid((await params).id)));
+  return apiRoute(request, async () => saveDriver(await body(request, driverInputSchema), uuid((await params).id)), {
+    permission: "archives:manage",
+  });
 }
 
 export function DELETE(request: Request, { params }: Context) {
-  return apiRoute(request, async () => deleteDriver(uuid((await params).id)));
+  return apiRoute(request, async () => deleteDriver(uuid((await params).id)), { permission: "archives:manage" });
 }

@@ -30,5 +30,5 @@ export async function GET(request: Request) {
     if (from > to) throw new ApiError(400, "起始月份不能晚于结束月份");
 
     return getFuelAnalytics(view, from, to, currentMonth);
-  });
+  }, { permission: "reports:view" });
 }
