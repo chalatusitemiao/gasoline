@@ -17,6 +17,7 @@
     "@ant-design/pro-components": "2.8.10",
     "@ant-design/v5-patch-for-react-19": "1.0.3",
     "@better-auth/drizzle-adapter": "1.7.20",
+    "@microsoft/clarity": "^1.0.2",
     "@next/env": "16.4.6",
     "@scalar/api-reference-react": "0.9.89",
     "@tanstack/react-query": "5.107.1",
