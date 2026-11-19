@@ -7,7 +7,7 @@ import { loginAttempts } from "@/lib/db/auth-guard-schema";
 import { companies, companyAuditLogs } from "@/lib/db/company-schema";
 import { authMigrationState, session, user, userCredential } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api-error";
-import { companyBillingStatus } from "@/lib/company-access";
+import { blockedCompanyBillingStatus } from "@/lib/company-access";
 import { isCompanyUserRole, isUserRole, type CompanyUserRole } from "@/lib/permissions";
 import type { ApiActor } from "@/lib/server-api";
 import { getSystemSettings, hashSettingsPassword, verifySettingsPassword } from "@/lib/system-settings";
@@ -126,7 +126,12 @@ export async function authorizeFuelAccount(username: string, password: string): 
     }
 
     const [company] = accountUser?.companyId && accountUser.role !== "super_admin"
-      ? await tx.select({ isActive: companies.isActive, billingRequired: companies.billingRequired, paidUntil: companies.paidUntil })
+      ? await tx.select({
+        isActive: companies.isActive,
+        billingRequired: companies.billingRequired,
+        paidUntil: companies.paidUntil,
+        suspendOnExpiry: companies.suspendOnExpiry,
+      })
         .from(companies).where(eq(companies.id, accountUser.companyId)).limit(1)
       : [];
     const accountAvailable = accountUser?.isActive && isUserRole(accountUser.role)
@@ -149,8 +154,8 @@ export async function authorizeFuelAccount(username: string, password: string): 
     await tx.update(loginAttempts).set({ failures: 0, lockedUntil: null })
       .where(eq(loginAttempts.id, attemptId));
     if (company) {
-      const billingStatus = companyBillingStatus(company.billingRequired, company.paidUntil);
-      if (billingStatus === "pending" || billingStatus === "expired") return { billingStatus };
+      const billingStatus = blockedCompanyBillingStatus(company);
+      if (billingStatus) return { billingStatus };
     }
     await tx.update(authMigrationState).set({ legacyCredentialsMigrated: true })
       .where(eq(authMigrationState.id, migrationStateId));

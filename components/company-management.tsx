@@ -2,7 +2,7 @@
 
 import { EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
@@ -16,6 +16,7 @@ type CompanyValues = {
   contactName: string;
   contactPhone: string;
   notes: string;
+  suspendOnExpiry?: boolean;
   adminUsername?: string;
   adminPassword?: string;
 };
@@ -37,6 +38,7 @@ export function CompanyManagement() {
     queryFn: ({ signal }) => apiFetch<CompanyPage>(`/api/companies?${new URLSearchParams({ keyword, page: String(pagination.page), pageSize: String(pagination.pageSize) })}`, { signal }),
   });
   const renewalCompany = renewing && (companies.data?.items.find((company) => company.id === renewing.id) ?? renewing);
+  const canConfigureExpiry = typeof editing?.suspendOnExpiry === "boolean";
 
   async function invalidate() {
     await Promise.all([
@@ -63,7 +65,8 @@ export function CompanyManagement() {
         contactName: values.contactName ?? "",
         contactPhone: values.contactPhone ?? "",
         notes: values.notes ?? "",
-        isActive: editing.isActive,
+        isActive: canConfigureExpiry ? undefined : editing.isActive,
+        suspendOnExpiry: canConfigureExpiry && values.suspendOnExpiry !== editing.suspendOnExpiry ? values.suspendOnExpiry : undefined,
       } : values));
       setOpen(false);
       form.resetFields();
@@ -127,6 +130,9 @@ export function CompanyManagement() {
         <Form.Item name="contactName" label="联系人"><Input maxLength={80} /></Form.Item>
         <Form.Item name="contactPhone" label="联系电话"><Input maxLength={32} /></Form.Item>
         <Form.Item name="notes" label="备注"><Input.TextArea maxLength={500} rows={2} showCount /></Form.Item>
+        {canConfigureExpiry && <Form.Item name="suspendOnExpiry" label="到期处理" extra="选择到期不停用时，启用的公司及账号在租期到期后可继续使用。">
+          <Radio.Group options={[{ label: "到期停用", value: true }, { label: "到期不停用", value: false }]} />
+        </Form.Item>}
         {!editing && <>
           <Form.Item name="adminUsername" label="初始管理员账号" extra="登录账号在全平台范围内唯一。" rules={[{ required: true, whitespace: true, message: "请输入管理员账号" }]}><Input autoComplete="username" maxLength={128} /></Form.Item>
           <Form.Item name="adminPassword" label="初始管理员密码" rules={[{ required: true, min: 8, message: "密码至少需要 8 位" }]}><Input.Password autoComplete="new-password" maxLength={1024} /></Form.Item>

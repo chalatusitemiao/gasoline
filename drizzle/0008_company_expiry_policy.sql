@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "suspend_on_expiry" boolean DEFAULT true NOT NULL;

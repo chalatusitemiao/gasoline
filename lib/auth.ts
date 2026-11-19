@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { companyBillingDenials, companyBillingStatus } from "./company-access";
+import { blockedCompanyBillingStatus, companyBillingDenials } from "./company-access";
 import { getDatabaseUrl, getDb } from "./db";
 import { account, session, user, verification } from "./db/schema";
 import { companies } from "./db/company-schema";
@@ -128,6 +128,7 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
         isActive: companies.isActive,
         billingRequired: companies.billingRequired,
         paidUntil: companies.paidUntil,
+        suspendOnExpiry: companies.suspendOnExpiry,
       },
     }).from(user).leftJoin(companies, eq(user.companyId, companies.id))
       .where(eq(user.id, result.user.id)).limit(1);
@@ -136,9 +137,7 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
     if (accountUser.role === "super_admin") {
       if (accountUser.companyId !== null) return null;
     } else {
-      if (!accountUser.companyId || !company?.isActive) return null;
-      const billingStatus = companyBillingStatus(company.billingRequired, company.paidUntil);
-      if (billingStatus === "pending" || billingStatus === "expired") return null;
+      if (!accountUser.companyId || !company?.isActive || blockedCompanyBillingStatus(company)) return null;
     }
     return {
       ...result,

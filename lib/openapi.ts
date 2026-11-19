@@ -128,9 +128,14 @@ const userIdPath = { name: "id", in: "path", required: true, schema: string };
 const companyInputFields = {
   name: string, contactName: string, contactPhone: string, notes: string,
 };
+const companyExpiryPolicy = {
+  ...boolean,
+  description: "true 为到期停用，false 为到期不停用。两种设置都按实际到期时间返回租期状态。",
+};
 const companyFields = {
   id: uuid, code: { ...string, readOnly: true }, ...companyInputFields,
   isActive: { ...boolean, description: "公司手动启停状态" },
+  suspendOnExpiry: companyExpiryPolicy,
   billingStatus: {
     ...string, enum: ["unmanaged", "pending", "active", "expired"],
     description: "unmanaged 表示存量公司暂未纳入计费，pending 表示待首次付款，active 表示租期有效，expired 表示已到期。",
@@ -185,12 +190,12 @@ export const openApiDocument = {
     "/api/login": {
       post: {
         tags: ["会话"], summary: "账号登录",
-        description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。公司账号凭据正确时，租期尚未开通或已到期会返回 403。已有会话在访问业务接口时校验租期，超出租期将返回 401。",
+        description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。公司账号凭据正确时，首次租期尚未开通，或租期已到期且公司启用了到期停用，登录会返回 403。已有会话在这些条件下访问业务接口会返回 401。",
         security: [],
         requestBody: requestBody(object(credentials, ["username", "password"])),
         responses: {
           ...replies(object({ name: string })),
-          403: response("公司租期尚未开通、已到期或请求来源不受信任", { type: "null" }, 403),
+          403: response("公司租期尚未开通、已按到期设置停用或请求来源不受信任", { type: "null" }, 403),
           409: response("尚未注册后台账号", { type: "null" }, 409),
           503: response("数据库连接尚未配置", { type: "null" }, 503),
         },
@@ -316,13 +321,13 @@ export const openApiDocument = {
     "/api/companies": {
       get: {
         tags: ["公司管理"], summary: "分页查询公司",
-        description: "仅超级管理员可用。返回手动启停状态、租期状态、到期时间、账号数量及有效管理员数量。adminCount=0 的公司需补建公司管理员。",
+        description: "仅超级管理员可用。返回手动启停状态、租期状态、到期时间、到期处理、账号数量及有效管理员数量。adminCount=0 的公司需补建公司管理员。",
         parameters: [...pageParams, query("keyword", string)],
         responses: replies(page(ref("Company"))),
       },
       post: {
         tags: ["公司管理"], summary: "创建公司和首个公司管理员",
-        description: "仅超级管理员可用。公司及管理员在同一事务中创建，管理员用户名全平台唯一。公司编号由服务端生成。新公司初始租期状态为 pending，首次登记收款后方可访问公司业务。",
+        description: "仅超级管理员可用。公司及管理员在同一事务中创建，管理员用户名全平台唯一。公司编号由服务端生成。新公司默认为到期停用，初始租期状态为 pending，首次登记收款后方可访问公司业务。",
         requestBody: requestBody(object({
           ...companyInputFields,
           adminUsername: { ...credentials.username },
@@ -333,10 +338,12 @@ export const openApiDocument = {
     },
     "/api/companies/{id}": {
       put: {
-        tags: ["公司管理"], summary: "修改公司资料及启停状态",
-        description: "仅超级管理员可用。停用公司会阻止该公司账号继续访问，历史数据保留。重新启用后仍按租期及各账号的启停状态判断访问权限。公司不提供物理删除接口。",
+        tags: ["公司管理"], summary: "修改公司资料、启停状态及到期处理",
+        description: "仅超级管理员可用。省略 isActive 或 suspendOnExpiry 时沿用对应设置。手动停用公司会阻止该公司账号继续访问，历史数据保留。重新启用后根据租期、到期设置及账号启停状态授予访问权限。",
         parameters: [pathId],
-        requestBody: requestBody(object({ ...companyInputFields, isActive: boolean }, ["name", "isActive"])),
+        requestBody: requestBody(object({
+          ...companyInputFields, isActive: boolean, suspendOnExpiry: companyExpiryPolicy,
+        }, ["name"])),
         responses: replies(ref("Company")),
       },
     },
@@ -582,7 +589,7 @@ export const openApiDocument = {
       User: object(userFields, ["id", "name", "username", "role", "companyId", "companyName", "isActive", "createdAt"]),
       Company: object(companyFields, [
         "id", "code", "name", "contactName", "contactPhone", "notes", "isActive",
-        "billingStatus", "paidUntil", "createdAt", "updatedAt", "accountCount", "adminCount",
+        "suspendOnExpiry", "billingStatus", "paidUntil", "createdAt", "updatedAt", "accountCount", "adminCount",
       ]),
       CompanyRenewal: object(companyRenewalFields, ["id", "amount", "months", "startsAt", "endsAt", "recordedAt", "recordedBy"]),
       CompanyAudit: object({

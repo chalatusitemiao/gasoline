@@ -28,7 +28,11 @@ export const createCompanySchema = z.object({
   adminUsername: usernameSchema,
   adminPassword: z.string().min(8, "密码至少需要 8 位").max(1024),
 }).strict();
-export const updateCompanySchema = z.object({ ...companyFields, isActive: z.boolean() }).strict();
+export const updateCompanySchema = z.object({
+  ...companyFields,
+  isActive: z.boolean().optional(),
+  suspendOnExpiry: z.boolean().optional(),
+}).strict();
 const listFilter = pageSchema.extend({ keyword: keywordSchema });
 
 // Keep the outer company reference qualified inside correlated subqueries.
@@ -39,6 +43,7 @@ const companySelection = {
   id: companies.id, code: companies.code, name: companies.name,
   contactName: companies.contactName, contactPhone: companies.contactPhone, notes: companies.notes,
   isActive: companies.isActive, billingRequired: companies.billingRequired, paidUntil: companies.paidUntil,
+  suspendOnExpiry: companies.suspendOnExpiry,
   createdAt: companies.createdAt, updatedAt: companies.updatedAt,
   accountCount, adminCount,
 };
@@ -107,18 +112,23 @@ export async function updateCompany(id: string, input: z.output<typeof updateCom
     await tx.execute(sql`select pg_advisory_xact_lock(1662806122, 2)`);
     const [current] = await tx.select().from(companies).where(eq(companies.id, id)).for("update");
     if (!current) throw new ApiError(404, "公司不存在");
-    const [updated] = await tx.update(companies).set({ ...input, updatedAt: new Date() })
+    const fields = {
+      ...input,
+      isActive: input.isActive ?? current.isActive,
+      suspendOnExpiry: input.suspendOnExpiry ?? current.suspendOnExpiry,
+    };
+    const [updated] = await tx.update(companies).set({ ...fields, updatedAt: new Date() })
       .where(eq(companies.id, id)).returning();
-    if (!input.isActive) {
+    if (!updated.isActive) {
       await tx.delete(session).where(inArray(session.userId, tx.select({ id: user.id }).from(user).where(eq(user.companyId, id))));
     }
     await tx.insert(companyAuditLogs).values({
       companyId: id, actorId: actor.id, actorName: actor.name,
-      action: current.isActive !== input.isActive ? input.isActive ? "company.enable" : "company.disable" : "company.update",
+      action: current.isActive !== updated.isActive ? updated.isActive ? "company.enable" : "company.disable" : "company.update",
       targetId: id,
       details: {
-        before: { name: current.name, contactName: current.contactName, contactPhone: current.contactPhone, notes: current.notes, isActive: current.isActive },
-        after: input,
+        before: { name: current.name, contactName: current.contactName, contactPhone: current.contactPhone, notes: current.notes, isActive: current.isActive, suspendOnExpiry: current.suspendOnExpiry },
+        after: fields,
       },
     });
     const [counts] = await tx.select({ accountCount, adminCount }).from(companies).where(eq(companies.id, id));

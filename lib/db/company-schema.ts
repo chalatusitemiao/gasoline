@@ -13,6 +13,7 @@ export const companies = pgTable("companies", {
   isActive: boolean("is_active").default(true).notNull(),
   billingRequired: boolean("billing_required").default(true).notNull(),
   paidUntil: timestamp("paid_until", { withTimezone: true }),
+  suspendOnExpiry: boolean("suspend_on_expiry").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [index("companies_created_at_idx").on(table.createdAt, table.id)]);

@@ -57,6 +57,13 @@
       "when": 1795070883129,
       "tag": "0007_company_renewals",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795072102530,
+      "tag": "0008_company_expiry_policy",
+      "breakpoints": true
     }
   ]
 }

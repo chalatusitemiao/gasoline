@@ -46,9 +46,12 @@ function createPaymentRequestId() {
 export function CompanyBillingState({ company }: { company: Company }) {
   const status = billingStates[company.billingStatus];
   if (!status) return <Typography.Text type="secondary">—</Typography.Text>;
+  const { suspendOnExpiry } = company;
+  const expiryWarning = company.billingStatus === "expired" && suspendOnExpiry === false;
   return <Space direction="vertical" size={2}>
-    <Tag color={status.color}>{status.label}</Tag>
+    <Tag color={expiryWarning ? "warning" : status.color}>{status.label}</Tag>
     {company.paidUntil && <Typography.Text type="secondary">{stampText(company.paidUntil)}</Typography.Text>}
+    {typeof suspendOnExpiry === "boolean" && <Typography.Text type="secondary">{suspendOnExpiry ? "到期停用" : "到期不停用"}</Typography.Text>}
   </Space>;
 }
 

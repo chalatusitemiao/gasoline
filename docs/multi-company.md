@@ -31,7 +31,9 @@
 
 租期为 `active` 时，续费接在当前到期时间之后。首次开通或已到期时，从登记时刻起算。日期按 `Asia/Shanghai` 的自然月计算，目标月份没有对应的日期时取该月最后一天。
 
-新公司待首次付款（`pending`），历史公司升级后暂未纳入计费（`unmanaged`），首次登记收款后进入有效租期。到期（`expired`）时，Web 和 Windows 的后续登录与业务请求均由服务端拦截，已有台账、车辆和司机等业务数据保留。公司或账号若被手动停用，续费后仍需先启用才能恢复访问。
+新公司待首次付款（`pending`），历史公司升级后暂未纳入计费（`unmanaged`），首次登记收款后进入有效租期。
+
+超级管理员可在「公司管理」编辑公司的「到期处理」。默认选择「到期停用」，到期后服务端会拦截 Web 和 Windows 的登录及业务请求。选择「到期不停用」时，处于启用状态的公司及账号可以继续使用，租期仍显示「已到期」（`expired`），并保留原到期时间。两种方式均保留历史数据。公司或账号若被手动停用，需重新启用后才能恢复访问。
 
 ## 数据与配置隔离
 
@@ -57,16 +59,16 @@
 
 ### 当前账号与密码
 
-- 公司账号凭据正确但租期尚未开通或已到期时，`POST /api/login` 返回 `403` 并提示联系平台管理员。已有会话在到期后的业务请求返回 `401`。
+- 公司账号凭据正确时，首次租期尚未开通，或租期已到期且设置为「到期停用」，`POST /api/login` 返回 `403` 并提示联系平台管理员。已有会话在这些条件下访问业务接口会返回 `401`。
 - `GET /api/me`：返回当前账号、角色、权限、业务时区及 `companyId`、`companyName`。超级管理员的公司字段为 `null`。
 - `PUT /api/users/password`：提交 `{currentPassword, password}`，校验当前密码后修改本人密码并撤销本人会话，返回 `data: {requireLogin: true}`，需要重新登录。
 - 超级管理员通过右上角「修改登录账号」提交 `PUT /api/users/username`，请求体为 `{username, currentPassword}`。新用户名去除首尾空白后为 1 至 128 个字符，按 NFKC 规范化并忽略大小写比较。当前密码错误或新旧用户名规范化后相同返回 `400`，用户名已被占用返回 `409`，公司账号调用返回 `403`。成功返回 `data: {requireLogin: true}` 并撤销超级管理员的所有会话，随后用新用户名和当前密码登录同一超级管理员账号。
 
 ### 公司
 
-- `GET /api/companies?keyword=&page=&pageSize=`：仅超级管理员；返回分页 `{items, total, page, pageSize}`。公司字段为 `id`、`code`、`name`、`contactName`、`contactPhone`、`notes`、`isActive`、`billingStatus`、`paidUntil`、`createdAt`、`updatedAt`、`accountCount`、`adminCount`。`isActive` 为手动启停状态，`paidUntil` 为 ISO 8601 截止时间或 `null`。
-- `POST /api/companies`：仅超级管理员；提交 `{name, contactName?, contactPhone?, notes?, adminUsername, adminPassword}`，同时创建公司和首个管理员，返回公司。
-- `PUT /api/companies/{id}`：仅超级管理员；提交 `{name, contactName?, contactPhone?, notes?, isActive}`，返回修改后的公司。
+- `GET /api/companies?keyword=&page=&pageSize=` 仅超级管理员可用，返回分页 `{items, total, page, pageSize}`。公司字段为 `id`、`code`、`name`、`contactName`、`contactPhone`、`notes`、`isActive`、`suspendOnExpiry`、`billingStatus`、`paidUntil`、`createdAt`、`updatedAt`、`accountCount`、`adminCount`。`isActive` 为手动启停状态。`suspendOnExpiry` 为布尔值，`true` 表示到期停用，`false` 表示到期不停用。`paidUntil` 为 ISO 8601 截止时间或 `null`。
+- `POST /api/companies` 仅超级管理员可用。提交 `{name, contactName?, contactPhone?, notes?, adminUsername, adminPassword}` 同时创建公司和首个管理员，返回公司。新公司默认 `suspendOnExpiry=true`。
+- `PUT /api/companies/{id}` 仅超级管理员可用。提交 `{name, contactName?, contactPhone?, notes?, isActive?, suspendOnExpiry?}`，返回修改后的公司。省略 `isActive` 或 `suspendOnExpiry` 时沿用对应设置。
 - `GET /api/companies/audit?companyId=&page=&pageSize=`：仅超级管理员；按公司可选筛选操作审计，返回分页。审计字段为 `id`、`companyId`（可为空）、`actorId`、`actorName`、`action`、`targetId`、`details`、`createdAt`。
 
 ### 收款续费
@@ -149,7 +151,7 @@
 
 默认公司不一定已有有效管理员：如果升级前唯一管理员就是原固定初始账号，它升级为超级管理员后不再拥有默认公司的业务身份。超级管理员需要在账号管理为默认公司补建 `admin`，并使用另行设置的密码登录该公司账号。系统不能自动继承未知密码或给超级管理员补公司权限。
 
-计费迁移后，迁移前已存在的公司保留原有访问规则，并显示为 `unmanaged`。首次登记线下收款时开始计算租期。
+计费迁移后，迁移前已存在的公司保留原有访问规则，并显示为 `unmanaged`。首次登记线下收款时开始计算租期。到期处理迁移将公司默认设为「到期停用」，延续原有到期行为。
 
 以下是部署时应执行的操作，本文不代表这些操作已经完成：
 

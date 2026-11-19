@@ -10,6 +10,7 @@ export type Company = {
   isActive: boolean;
   billingStatus: CompanyBillingStatus;
   paidUntil: string | null;
+  suspendOnExpiry: boolean;
   createdAt: string;
   updatedAt: string;
   accountCount: number;
