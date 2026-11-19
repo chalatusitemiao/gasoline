@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ApiResponse } from "@/lib/api";
-import { apiRequest, ApiClientError, configureApiTransport } from "@/lib/api-client";
+import { apiFetch, apiRequest, ApiClientError, configureApiTransport } from "@/lib/api-client";
 import type { Permission, UserRole } from "@/lib/permissions";
 
 export const serverStorageKey = "gasoline.desktop.server";
@@ -75,7 +75,23 @@ async function readSession(signal: AbortSignal): Promise<DesktopSession> {
   const response = await apiRequest("/api/me", { signal, cache: "no-store" });
   const result = await response.json().catch(() => null) as ApiResponse<AccountSettings> | null;
   if (response.status === 401 && result?.code === 401 && result.data === null) {
-    return { id: null, name: null, role: null, companyId: null, companyName: null, permissions: [], timeZone: null, registrationUnavailable: null };
+    const status = await apiFetch<{ registrationUnavailable: string | null }>("/api/register", {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
+    }).catch(() => null);
+    signal.throwIfAborted();
+    const registrationUnavailable = status?.registrationUnavailable;
+    return {
+      id: null,
+      name: null,
+      role: null,
+      companyId: null,
+      companyName: null,
+      permissions: [],
+      timeZone: null,
+      registrationUnavailable: registrationUnavailable === null || (typeof registrationUnavailable === "string" && registrationUnavailable)
+        ? registrationUnavailable
+        : "请在网页版查看超级管理员初始化状态。",
+    };
   }
   const settings = result?.data;
   if (!response.ok || result?.code !== 0 || !settings || typeof settings.id !== "string" ||

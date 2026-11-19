@@ -76,7 +76,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
       companyName: null,
       permissions: [],
       timeZone: null,
-      registrationUnavailable: previous?.registrationUnavailable ?? null,
+      registrationUnavailable: previous?.registrationUnavailable ?? "系统已有后台账号，请直接登录。",
     }));
     replaceDesktopLocation(destination);
   }, [queryClient]);
@@ -162,7 +162,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
                 key="login"
                 mode="login"
                 next={accountPage ? next : loginNext}
-                rememberPassword={false}
+                registrationUnavailable={account.registrationUnavailable}
                 onAccountAccepted={completeAccount}
               />
             )}

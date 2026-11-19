@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyOutlined, LockOutlined, UserOutlined } from "@ant-design/icons";
-import { LoginForm as ProLoginForm, ProFormCheckbox, ProFormText } from "@ant-design/pro-components";
+import { LoginForm as ProLoginForm, ProFormText } from "@ant-design/pro-components";
 import { Alert, Spin } from "antd";
 import { useRef, useState, useTransition } from "react";
 import { AppLink, useAppNavigation } from "@/components/app-navigation";
@@ -14,29 +14,13 @@ type AccountFields = {
   username: string;
   password: string;
   registrationKey?: string;
-  rememberPassword?: boolean;
 };
-type AccountFormProps = (
-  | { mode: "login"; next: string }
-  | { mode: "register"; next: string; registrationUnavailable: string | null }
-) & {
-  rememberPassword?: boolean;
+type AccountFormProps = {
+  mode: "login" | "register";
+  next: string;
+  registrationUnavailable: string | null;
   onAccountAccepted?: () => string | void | Promise<string | void>;
 };
-
-async function saveBrowserPassword(username: string, password: string) {
-  const { PasswordCredential } = window as Window & {
-    PasswordCredential?: new (data: { id: string; password: string }) => Credential;
-  };
-
-  if (typeof PasswordCredential !== "function" || !navigator.credentials?.store) return;
-
-  try {
-    await navigator.credentials.store(new PasswordCredential({ id: username, password }));
-  } catch {
-    // Password storage depends on browser settings and must not interrupt sign-in.
-  }
-}
 
 export function AccountScreen(props: AccountFormProps) {
   return (
@@ -50,7 +34,6 @@ export function AccountScreen(props: AccountFormProps) {
 
 function AccountForm(props: AccountFormProps) {
   const { replace } = useAppNavigation();
-  const { rememberPassword = true } = props;
   const formRef = useRef<{ nativeElement?: HTMLElement } | undefined>(undefined);
   const pendingRequest = useRef(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -59,6 +42,7 @@ function AccountForm(props: AccountFormProps) {
   const isRegistration = props.mode === "register";
   const registrationUnavailable = isRegistration ? props.registrationUnavailable : null;
   const submitting = phase === "submitting";
+  const showAccountLink = !submitting && !navigating && (isRegistration || props.registrationUnavailable === null);
   const heading = isRegistration ? "初始化超级管理员" : "账号密码登录";
   const submitText = isRegistration ? "创建超级管理员" : "登录";
   const submittingText = `正在${submitText}…`;
@@ -98,10 +82,6 @@ function AccountForm(props: AccountFormProps) {
       });
       const destination = props.onAccountAccepted ? await props.onAccountAccepted() : undefined;
 
-      if (!isRegistration && rememberPassword && values.rememberPassword) {
-        void saveBrowserPassword(credentials.data.username, credentials.data.password);
-      }
-
       setPhase("accepted");
       startNavigation(() => replace(destination || props.next));
     } catch (error) {
@@ -124,11 +104,11 @@ function AccountForm(props: AccountFormProps) {
       subTitle="多公司用油管理后台"
       contentStyle={{ minWidth: "min(280px, 100%)", maxWidth: "min(75vw, 100%)" }}
       otherStyle={{ textAlign: "center" }}
-      actions={submitting || navigating ? null : (
+      actions={showAccountLink ? (
         <AppLink className={styles.accountLink} href={isRegistration ? "/login" : "/register"}>
           {isRegistration ? "返回登录" : "初始化超级管理员"}
         </AppLink>
-      )}
+      ) : null}
       formRef={formRef}
       name={isRegistration ? "registration" : "login"}
       method="post"
@@ -178,7 +158,7 @@ function AccountForm(props: AccountFormProps) {
               prefix: <LockOutlined />,
             }}
           />
-          {isRegistration ? (
+          {isRegistration && (
             <ProFormText.Password
               name="registrationKey"
               placeholder="输入注册密钥"
@@ -191,10 +171,6 @@ function AccountForm(props: AccountFormProps) {
                 prefix: <KeyOutlined />,
               }}
             />
-          ) : rememberPassword && (
-            <ProFormCheckbox name="rememberPassword">
-              记住密码<span className={styles.rememberHint}>由浏览器保存</span>
-            </ProFormCheckbox>
           )}
         </>
       )}

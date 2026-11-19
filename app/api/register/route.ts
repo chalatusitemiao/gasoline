@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { getAuth } from "@/lib/auth";
+import { getAuth, getRegistrationStatus } from "@/lib/auth";
 import { getDatabaseUrl, getDb } from "@/lib/db";
 import { getRegistrationKey, hasRegisteredFuelAccount, matchesRegistrationKey, upsertFleetUser } from "@/lib/fuel-credentials";
 import { body } from "@/lib/fuel-server/shared";
@@ -12,6 +12,15 @@ import { SettingsConflictError, writeStoredSettings } from "@/lib/system-setting
 const registrationSchema = loginSchema.extend({
   registrationKey: z.string().trim().min(1, "请输入注册密钥").max(1024),
 }).extend({ password: registrationCredentialsSchema.shape.password });
+
+export async function GET() {
+  try {
+    const { registrationUnavailable } = await getRegistrationStatus();
+    return apiResponse(200, { registrationUnavailable }, "操作成功");
+  } catch (error) {
+    return apiFailure(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {

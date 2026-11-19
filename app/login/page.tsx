@@ -15,7 +15,7 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
   const next = safeReturnTo((await searchParams).next);
-  const { session } = await getPageSession();
+  const { registrationUnavailable, session } = await getPageSession();
 
   if (session) {
     redirect(next);
@@ -23,7 +23,7 @@ export default async function LoginPage({
 
   return (
     <WebNavigationProvider>
-      <AccountScreen mode="login" next={next} />
+      <AccountScreen mode="login" next={next} registrationUnavailable={registrationUnavailable} />
     </WebNavigationProvider>
   );
 }

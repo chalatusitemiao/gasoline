@@ -157,17 +157,27 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
   }
 }
 
-export const getPageSession = cache(async () => {
-  const requestHeaders = await headers();
+export function getRegistrationStatus() {
   return withSystemSettings(async () => {
     if (!getDatabaseUrl()) {
-      return { registrationUnavailable: "数据库尚未配置，请联系管理员。", session: null };
+      return { hasAccount: false, registrationUnavailable: "数据库尚未配置，请联系管理员。" };
     }
     const hasAccount = await hasRegisteredFuelAccount() || hasFleetAccount(await getSystemSettings());
     return {
+      hasAccount,
       registrationUnavailable: hasAccount
         ? "超级管理员已初始化，请直接登录。公司账号请联系管理员创建。"
         : getRegistrationKey() ? null : "当前环境未启用注册，请联系管理员。",
+    };
+  });
+}
+
+export const getPageSession = cache(async () => {
+  const requestHeaders = await headers();
+  return withSystemSettings(async () => {
+    const { hasAccount, registrationUnavailable } = await getRegistrationStatus();
+    return {
+      registrationUnavailable,
       session: hasAccount ? await getRequestSession(requestHeaders) : null,
     };
   });

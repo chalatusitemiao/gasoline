@@ -215,7 +215,7 @@ export const openApiDocument = {
   info: {
     title: "车辆监控接口",
     version: "0.1.0",
-    description: "登录与初始注册使用同源请求，其余接口使用 HttpOnly 会话 Cookie。全平台只有一个超级管理员，负责公司管理、公司账号管理和平台汇总；公司管理员、录入员和只读人员仅访问本公司业务。所有台账、档案、导入导出、报表和日志按公司隔离，服务端从有效会话确定公司，不接受通过请求参数切换业务公司。接口统一返回 code、data、message。",
+    description: "登录和初始化提交使用同源请求，登录前可查询初始化状态，业务接口使用 HttpOnly 会话 Cookie。全平台只有一个超级管理员，负责公司管理、公司账号管理和平台汇总；公司管理员、录入员和只读人员仅访问本公司业务。所有台账、档案、导入导出、报表和日志按公司隔离，服务端从有效会话确定公司，不接受通过请求参数切换业务公司。接口统一返回 code、data、message。",
   },
   servers: [{ url: "/" }],
   security: [{ sessionCookie: [] }, { secureSessionCookie: [] }],
@@ -312,6 +312,16 @@ export const openApiDocument = {
       },
     },
     "/api/register": {
+      get: {
+        tags: ["会话"], summary: "查询超级管理员初始化状态",
+        security: [],
+        responses: {
+          200: response("读取成功", object({
+            registrationUnavailable: { ...nullableString, description: "允许初始化时为 null，否则返回提示。" },
+          }, ["registrationUnavailable"])),
+          500: errors[500],
+        },
+      },
       post: {
         tags: ["会话"], summary: "初始化唯一超级管理员账号",
         description: "尚未初始化时，使用部署环境的 REGISTRATION_KEY 注册唯一超级管理员。密码至少 8 位。初始化完成后不再允许通过该接口注册其他账号；已有固定初始账号在迁移时升级为超级管理员。",

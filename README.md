@@ -19,7 +19,7 @@
 
 客户端使用 Tauri 2 和 WebView2，在本地加载与网页版共用的 React 页面、组件和静态资源。登录、会话检查和业务数据读写都使用现有线上 API。首次启动时填写现有网站的 HTTPS 根地址。客户端只保存服务器地址，完全退出进程后需要重新登录。
 
-从 `v0.1.1` 起，登录 Windows 客户端后可在右上角账号菜单选择「检查更新」。发现新版本时，客户端显示更新说明。点击「下载并安装」后，客户端从软件中心下载安装包，校验 SHA-256，再启动安装程序并退出。
+从 `0.1.2` 起，登录 Windows 客户端后可在右上角账号菜单选择「检查更新」。发现新版本时，客户端显示版本号和更新说明。点击「下载并安装」后，客户端从软件中心下载安装包，校验文件大小和 SHA-256，再启动安装程序并退出。从 `0.1.0` 升级时，请先从软件中心下载并安装 `0.1.2` 或更高版本。
 
 在 Windows 安装 Rust stable、Microsoft C++ Build Tools 和 WebView2 Runtime 后，从仓库根目录执行下列命令。开发时可以连接本机 `pnpm dev` 启动的 Web 服务，例如 `http://localhost:3000`。
 
@@ -33,7 +33,7 @@ pnpm --dir desktop tauri dev
 
 ### 通过 CNB 发布到软件中心
 
-推送 `v主版本.次版本.修订版本` 格式的 tag 到 `cnb` 远端会触发 Windows x64 发布。流水线把 tag 的版本写入 Tauri 安装包，使用附注 tag 的标题作为更新说明。CNB 交叉构建 NSIS 安装程序并打包为 `Gasoline-<version>-windows-x64.zip`。流水线向软件中心申请短效 R2 上传地址，直接把 ZIP PUT 到 R2，再请求软件中心核验 SHA-256、发布并读回公开版本。
+CNB 的 Windows x64 发布只响应 Git `tag_push` 事件。推送 `v主版本.次版本.修订版本` 格式的 tag 后，流水线去掉 `v` 前缀，把得到的版本号写入 Tauri 客户端、NSIS 安装包和软件中心发布记录。例如，`v0.1.2` 对应版本 `0.1.2`。附注 tag 的标题会作为更新说明。CNB 将安装程序打包为 `Gasoline-<version>-windows-x64.zip`，通过短效地址直传 R2，再请求软件中心核验 SHA-256、发布并读回公开版本。
 
 CNB 将 Windows SDK 与构建工具、Cargo 依赖分别保存为缓存镜像，供不同 tag 和构建节点使用。修改 Cargo 依赖清单时只重建依赖缓存，Windows SDK 继续复用。Windows 构建使用离线 Cargo 模式，首次建立缓存时会下载工具链和依赖。
 
@@ -46,11 +46,12 @@ allow_branches: 'v*'
 UPDATE_UPLOAD_TOKEN: '<软件中心上传令牌>'
 ```
 
-把包含流水线的提交同步到 CNB 后，在该提交上打 tag 并推送。每个已发布版本的安装包不可覆盖。若完成上传时响应中断，按流水线日志中的会话 ID 在软件中心核对结果。
+在本地将 `https://cnb.cool/ruiange/gasoline.git` 配置为 `cnb` 远端。先同步要发布的提交，再创建并推送递增的 tag。以发布 `v0.1.3` 为例。每个已发布版本的安装包不可覆盖。若完成上传时响应中断，按流水线日志中的会话 ID 在软件中心核对结果。
 
 ```sh
-git tag -a v0.1.0 -m 'Windows 客户端首发'
-git push cnb refs/tags/v0.1.0
+git push cnb HEAD:refs/heads/main
+git tag -a v0.1.3 -m '本次更新说明'
+git push cnb refs/tags/v0.1.3
 ```
 
 ## 接口
