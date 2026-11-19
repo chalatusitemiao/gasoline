@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "desktop",
-  "description": "Allows the bundled main window to use the configured Gasoline API.",
+  "description": "Allows the bundled main window to use the Gasoline API and install Windows updates.",
   "windows": ["main"],
-  "permissions": ["allow-set-api-origin", "allow-api-request"]
+  "permissions": ["allow-set-api-origin", "allow-api-request", "allow-check-for-update", "allow-install-update"]
 }

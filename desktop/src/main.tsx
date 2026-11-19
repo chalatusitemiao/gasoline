@@ -11,6 +11,7 @@ import { homePath, loginPath, safeReturnTo } from "@/lib/login-path";
 import { disconnectServer, loadSession, serverStorageKey, sessionExpiredEvent, type DesktopSession } from "./api";
 import { DesktopLink, desktopLocation, replaceDesktopLocation, useDesktopLocation } from "./navigation";
 import { DesktopPage } from "./pages";
+import { useDesktopUpdates } from "./updates";
 import "./global.css";
 import styles from "./main.module.css";
 
@@ -43,6 +44,7 @@ function Connecting() {
 
 function ConnectedDesktop({ server, onChangeServer }: { server: string; onChangeServer: () => Promise<void> }) {
   const { message } = App.useApp();
+  const { openUpdateDialog, updateDialog } = useDesktopUpdates();
   const [changingServer, setChangingServer] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const queryClient = useQueryClient();
@@ -169,7 +171,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
       ) : accountPage || pathname === "/" ? <AdminLoading /> : (
         <AppQueryProvider key={`${account.id}:${account.companyId ?? "platform"}:${account.role}`}>
           <Suspense fallback={<AdminLoading />}>
-            <AdminShell name={account.name} permissions={account.permissions}>
+            <AdminShell name={account.name} permissions={account.permissions} onCheckForUpdate={openUpdateDialog}>
               <Suspense fallback={<AdminLoading />}>
                 <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} />
               </Suspense>
@@ -177,6 +179,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
           </Suspense>
         </AppQueryProvider>
       )}
+      {updateDialog}
     </AppNavigationProvider>
   );
 }

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod api;
+mod update;
 
 use tauri::{Url, WebviewWindowBuilder, webview::NewWindowResponse};
 
@@ -15,9 +16,12 @@ fn is_local_page(url: &Url) -> bool {
 fn main() {
     tauri::Builder::default()
         .manage(api::ApiState::default())
+        .manage(update::UpdateState::default())
         .invoke_handler(tauri::generate_handler![
             api::set_api_origin,
-            api::api_request
+            api::api_request,
+            update::check_for_update,
+            update::install_update,
         ])
         .setup(|app| {
             WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?

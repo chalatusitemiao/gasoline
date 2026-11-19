@@ -17,6 +17,7 @@ import {
   ProfileOutlined,
   ProjectOutlined,
   SettingOutlined,
+  SyncOutlined,
   TeamOutlined,
   ToolOutlined,
   UnorderedListOutlined,
@@ -113,10 +114,12 @@ export function AdminShell({
   children,
   name,
   permissions,
+  onCheckForUpdate,
 }: {
   children: ReactNode;
   name: string;
   permissions: readonly Permission[];
+  onCheckForUpdate?: () => void;
 }) {
   const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
   const { message } = App.useApp();
@@ -237,9 +240,11 @@ export function AdminShell({
               items: [
                 ...(platform ? [{ key: "username", icon: <UserOutlined />, label: "修改登录账号" }] : []),
                 { key: "password", icon: <KeyOutlined />, label: "修改本人密码" },
+                ...(onCheckForUpdate ? [{ key: "check-update", icon: <SyncOutlined />, label: "检查更新" }] : []),
                 { key: "logout", icon: <LogoutOutlined />, label: "退出登录" },
               ],
               onClick: ({ key }) => {
+                if (key === "check-update") onCheckForUpdate?.();
                 if (key === "logout") void signOut();
                 if (key === "username" || key === "password") setAccountEditor(key);
               },
