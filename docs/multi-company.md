@@ -33,7 +33,7 @@
 
 新公司待首次付款（`pending`），历史公司升级后暂未纳入计费（`unmanaged`），首次登记收款后进入有效租期。
 
-超级管理员可在「公司管理」编辑公司的「到期处理」。默认选择「到期停用」，到期后服务端会拦截 Web 和 Windows 的登录及业务请求。选择「到期不停用」时，处于启用状态的公司及账号可以继续使用，租期仍显示「已到期」（`expired`），并保留原到期时间。两种方式均保留历史数据。公司或账号若被手动停用，需重新启用后才能恢复访问。
+超级管理员可在「公司管理 → 收款续费」弹窗的「到期处理」中选择并保存设置。保存设置时可以留空实收金额和续费月数。默认选择「到期停用」，到期后服务端会拦截 Web 和 Windows 的登录及业务请求。选择「到期不停用」时，处于启用状态的公司及账号可以继续使用，租期仍显示「已到期」（`expired`），并保留原到期时间。两种方式均保留历史数据。公司或账号若被手动停用，需重新启用后才能恢复访问。
 
 ## 数据与配置隔离
 
@@ -69,6 +69,7 @@
 - `GET /api/companies?keyword=&page=&pageSize=` 仅超级管理员可用，返回分页 `{items, total, page, pageSize}`。公司字段为 `id`、`code`、`name`、`contactName`、`contactPhone`、`notes`、`isActive`、`suspendOnExpiry`、`billingStatus`、`paidUntil`、`createdAt`、`updatedAt`、`accountCount`、`adminCount`。`isActive` 为手动启停状态。`suspendOnExpiry` 为布尔值，`true` 表示到期停用，`false` 表示到期不停用。`paidUntil` 为 ISO 8601 截止时间或 `null`。
 - `POST /api/companies` 仅超级管理员可用。提交 `{name, contactName?, contactPhone?, notes?, adminUsername, adminPassword}` 同时创建公司和首个管理员，返回公司。新公司默认 `suspendOnExpiry=true`。
 - `PUT /api/companies/{id}` 仅超级管理员可用。提交 `{name, contactName?, contactPhone?, notes?, isActive?, suspendOnExpiry?}`，返回修改后的公司。省略 `isActive` 或 `suspendOnExpiry` 时沿用对应设置。
+- `PATCH /api/companies/{id}` 仅超级管理员可用。请求体仅接受 `{suspendOnExpiry}`，用于单独保存到期处理，返回修改后的公司。公司不存在时返回 `404`。
 - `GET /api/companies/audit?companyId=&page=&pageSize=`：仅超级管理员；按公司可选筛选操作审计，返回分页。审计字段为 `id`、`companyId`（可为空）、`actorId`、`actorName`、`action`、`targetId`、`details`、`createdAt`。
 
 ### 收款续费

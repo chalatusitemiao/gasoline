@@ -1,13 +1,13 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Col, Form, Input, InputNumber, Modal, Row, Space, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Col, Form, Input, InputNumber, Modal, Radio, Row, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Decimal from "decimal.js";
 import { useRef, useState } from "react";
 import { moneyText, QueryError, stampText } from "@/components/fuel/ui";
-import { apiFetch, jsonRequest } from "@/lib/api-client";
-import type { Company, CompanyRenewal, CompanyRenewalPage } from "@/lib/company";
+import { ApiClientError, apiFetch, jsonRequest } from "@/lib/api-client";
+import type { Company, CompanyPage, CompanyRenewal, CompanyRenewalPage } from "@/lib/company";
 
 const billingStates = {
   unmanaged: { label: "未设置租期", color: "default" },
@@ -17,6 +17,7 @@ const billingStates = {
 } satisfies Record<Company["billingStatus"], { label: string; color: string }>;
 
 const historyPageSize = 5;
+const companyListKey = ["companies", "list"] as const;
 const amountPattern = /^\d{1,10}(?:\.\d{1,2})?$/;
 const historyColumns: ColumnsType<CompanyRenewal> = [
   { title: "实收（元）", dataIndex: "amount", align: "right", width: 120, render: (amount: string) => moneyText(amount) },
@@ -55,13 +56,30 @@ export function CompanyBillingState({ company }: { company: Company }) {
   </Space>;
 }
 
-export function CompanyRenewalDialog({ company, onClose }: { company: Company | null; onClose: () => void }) {
+async function updateCompanyExpiryPolicy(company: Company, suspendOnExpiry: boolean) {
+  const endpoint = `/api/companies/${company.id}`;
+  try {
+    return await apiFetch<Company>(endpoint, jsonRequest("PATCH", { suspendOnExpiry }));
+  } catch (error) {
+    if (!(error instanceof ApiClientError) || error.status !== 405) throw error;
+    const { name, contactName, contactPhone, notes } = company;
+    return apiFetch<Company>(endpoint, jsonRequest("PUT", { name, contactName, contactPhone, notes, suspendOnExpiry }));
+  }
+}
+
+export function CompanyRenewalDialog({ company, onClose, onExpiryPolicySaved }: {
+  company: Company | null;
+  onClose: () => void;
+  onExpiryPolicySaved: (company: Company) => void;
+}) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<RenewalValues>();
   const [page, setPage] = useState(1);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<"renewal" | "expiry" | null>(null);
   const [error, setError] = useState("");
+  const [expiryDraft, setExpiryDraft] = useState<{ companyId: string; suspendOnExpiry: boolean } | null>(null);
+  const [expiryError, setExpiryError] = useState("");
   const pendingRequestIds = useRef(new Map<string, string>());
   const submitting = useRef(false);
   const historyKey = ["company-renewals", company?.id];
@@ -74,18 +92,46 @@ export function CompanyRenewalDialog({ company, onClose }: { company: Company | 
 
   if (!company) return null;
 
+  const suspendOnExpiry = expiryDraft?.companyId === company.id ? expiryDraft.suspendOnExpiry : company.suspendOnExpiry;
+
   function close() {
     if (submitting.current) return;
     form.resetFields();
     setError("");
+    setExpiryDraft(null);
+    setExpiryError("");
     setPage(1);
     onClose();
+  }
+
+  async function saveExpiryPolicy() {
+    if (!company || submitting.current || suspendOnExpiry === company.suspendOnExpiry) return;
+    submitting.current = true;
+    setSaving("expiry");
+    setExpiryError("");
+    try {
+      const updated = await updateCompanyExpiryPolicy(company, suspendOnExpiry);
+      await queryClient.cancelQueries({ queryKey: companyListKey });
+      queryClient.setQueriesData<CompanyPage>({ queryKey: companyListKey }, (page) => page && {
+        ...page,
+        items: page.items.map((row) => row.id === updated.id ? { ...row, suspendOnExpiry: updated.suspendOnExpiry } : row),
+      });
+      onExpiryPolicySaved(updated);
+      setExpiryDraft(null);
+      void queryClient.invalidateQueries({ queryKey: companyListKey });
+      message.success("到期处理已保存");
+    } catch (cause) {
+      setExpiryError(cause instanceof Error ? cause.message : "到期处理保存失败，请重试");
+    } finally {
+      submitting.current = false;
+      setSaving(null);
+    }
   }
 
   async function save(values: RenewalValues) {
     if (submitting.current) return;
     submitting.current = true;
-    setSaving(true);
+    setSaving("renewal");
     setError("");
     try {
       const amount = new Decimal(values.amount.trim()).toFixed(2);
@@ -96,14 +142,14 @@ export function CompanyRenewalDialog({ company, onClose }: { company: Company | 
       pendingRequestIds.current.delete(attempt);
       form.resetFields();
       setPage(1);
-      void queryClient.invalidateQueries({ queryKey: ["companies", "list"] });
+      void queryClient.invalidateQueries({ queryKey: companyListKey });
       void queryClient.invalidateQueries({ queryKey: historyKey });
       message.success(`已登记收款，续费至 ${stampText(renewal.endsAt)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "收款登记失败，请重试");
     } finally {
       submitting.current = false;
-      setSaving(false);
+      setSaving(null);
     }
   }
 
@@ -113,20 +159,40 @@ export function CompanyRenewalDialog({ company, onClose }: { company: Company | 
     open
     onCancel={close}
     onOk={() => form.submit()}
-    confirmLoading={saving}
+    confirmLoading={saving === "renewal"}
     closable={!saving}
     maskClosable={!saving}
     keyboard={!saving}
     okText="登记并续费"
     cancelText="关闭"
-    cancelButtonProps={{ disabled: saving }}
+    cancelButtonProps={{ disabled: saving !== null }}
+    okButtonProps={{ disabled: saving === "expiry" }}
   >
     {company.paidUntil && <Typography.Paragraph>当前到期时间为 <Typography.Text strong>{stampText(company.paidUntil)}</Typography.Text>。</Typography.Paragraph>}
     <Typography.Paragraph type="secondary">
       有效期内续费从当前到期时间顺延，首次开通或到期后续费从登记时间起算。以下时间均为北京时间。
     </Typography.Paragraph>
     {!company.isActive && <Alert type="warning" showIcon message="公司已手动停用，可在续费后通过公司管理恢复使用。" style={{ marginBottom: 16 }} />}
-    <Form<RenewalValues> form={form} layout="vertical" disabled={saving} autoComplete="off" onFinish={save}>
+    {typeof company.suspendOnExpiry === "boolean" && <fieldset style={{ border: 0, margin: "0 0 20px", minWidth: 0, padding: 0 }}>
+      <legend style={{ marginBottom: 8 }}>到期处理</legend>
+      <Space wrap>
+        <Radio.Group
+          value={suspendOnExpiry}
+          disabled={saving !== null}
+          options={[{ label: "到期停用", value: true }, { label: "到期不停用", value: false }]}
+          onChange={({ target }) => {
+            setExpiryDraft({ companyId: company.id, suspendOnExpiry: target.value === true });
+            setExpiryError("");
+          }}
+        />
+        <Button htmlType="button" loading={saving === "expiry"} disabled={saving !== null || suspendOnExpiry === company.suspendOnExpiry} onClick={() => void saveExpiryPolicy()}>
+          保存到期处理
+        </Button>
+      </Space>
+      <Typography.Text type="secondary" style={{ display: "block", marginTop: 4 }}>选择到期不停用时，启用的公司及账号在租期到期后可继续使用。</Typography.Text>
+      {expiryError && <Alert type="error" showIcon message={expiryError} style={{ marginTop: 8 }} />}
+    </fieldset>}
+    <Form<RenewalValues> form={form} layout="vertical" disabled={saving !== null} autoComplete="off" onFinish={save}>
       <Row gutter={16}>
         <Col xs={24} sm={12}>
           <Form.Item name="amount" label="实收金额（元）" rules={[

@@ -33,6 +33,7 @@ export const updateCompanySchema = z.object({
   isActive: z.boolean().optional(),
   suspendOnExpiry: z.boolean().optional(),
 }).strict();
+export const updateCompanyExpirySchema = z.object({ suspendOnExpiry: z.boolean() }).strict();
 const listFilter = pageSchema.extend({ keyword: keywordSchema });
 
 // Keep the outer company reference qualified inside correlated subqueries.
@@ -105,21 +106,21 @@ export async function createCompany(input: z.output<typeof createCompanySchema>,
   } catch (error) { conflict(error); }
 }
 
-export async function updateCompany(id: string, input: z.output<typeof updateCompanySchema>, actor: ApiActor) {
+function companyAuditFields(company: typeof companies.$inferSelect) {
+  const { name, contactName, contactPhone, notes, isActive, suspendOnExpiry } = company;
+  return { name, contactName, contactPhone, notes, isActive, suspendOnExpiry };
+}
+
+export async function updateCompany(id: string, input: Partial<z.output<typeof updateCompanySchema>>, actor: ApiActor) {
   const db = await getDb();
   return db.transaction(async (tx) => {
     // Use the same lock as account management, so company state and administrator changes serialize.
     await tx.execute(sql`select pg_advisory_xact_lock(1662806122, 2)`);
     const [current] = await tx.select().from(companies).where(eq(companies.id, id)).for("update");
     if (!current) throw new ApiError(404, "公司不存在");
-    const fields = {
-      ...input,
-      isActive: input.isActive ?? current.isActive,
-      suspendOnExpiry: input.suspendOnExpiry ?? current.suspendOnExpiry,
-    };
-    const [updated] = await tx.update(companies).set({ ...fields, updatedAt: new Date() })
+    const [updated] = await tx.update(companies).set({ ...input, updatedAt: new Date() })
       .where(eq(companies.id, id)).returning();
-    if (!updated.isActive) {
+    if (input.isActive === false) {
       await tx.delete(session).where(inArray(session.userId, tx.select({ id: user.id }).from(user).where(eq(user.companyId, id))));
     }
     await tx.insert(companyAuditLogs).values({
@@ -127,8 +128,8 @@ export async function updateCompany(id: string, input: z.output<typeof updateCom
       action: current.isActive !== updated.isActive ? updated.isActive ? "company.enable" : "company.disable" : "company.update",
       targetId: id,
       details: {
-        before: { name: current.name, contactName: current.contactName, contactPhone: current.contactPhone, notes: current.notes, isActive: current.isActive, suspendOnExpiry: current.suspendOnExpiry },
-        after: fields,
+        before: companyAuditFields(current),
+        after: companyAuditFields(updated),
       },
     });
     const [counts] = await tx.select({ accountCount, adminCount }).from(companies).where(eq(companies.id, id));

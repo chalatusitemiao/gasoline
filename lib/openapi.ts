@@ -346,6 +346,16 @@ export const openApiDocument = {
         }, ["name"])),
         responses: replies(ref("Company")),
       },
+      patch: {
+        tags: ["公司管理"], summary: "单独保存公司到期处理",
+        description: "仅超级管理员可用。收款续费弹窗可单独提交到期处理设置。收款和续期由收款续费接口处理。",
+        parameters: [pathId],
+        requestBody: requestBody({
+          ...object({ suspendOnExpiry: companyExpiryPolicy }, ["suspendOnExpiry"]),
+          additionalProperties: false,
+        }),
+        responses: { ...replies(ref("Company")), 404: response("公司不存在", { type: "null" }, 404) },
+      },
     },
     "/api/companies/{id}/renewals": {
       get: {
