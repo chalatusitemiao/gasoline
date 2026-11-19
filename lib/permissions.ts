@@ -76,7 +76,7 @@ export function pagePermission(pathname: string, granted: readonly string[] = []
     return "reports:view";
   }
   if (pathname === "/vehicles" || pathname === "/drivers") return "archives:view";
-  if (pathname === "/settings") return granted.includes("platform:settings") ? "platform:settings" : "settings:manage";
+  if (pathname === "/settings") return "settings:manage";
   if (pathname === "/users") return "users:manage";
   if (pathname === "/companies") return "companies:manage";
   if (pathname === "/docs" || pathname === "/calculation-docs") return "docs:view";

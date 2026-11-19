@@ -111,7 +111,7 @@ export function AdminShell({
   const queryClient = useQueryClient();
   const [passwordOpen, setPasswordOpen] = useState(false);
   const platform = hasPermission(permissions, "platform:view");
-  const pages = navigation.map((item) => ({ ...item, name: item.path === "/dashboard" && platform ? "平台业务汇总" : item.path === "/settings" && platform ? "平台配置" : item.name }));
+  const pages = navigation.map((item) => ({ ...item, name: item.path === "/dashboard" && platform ? "平台业务汇总" : item.name }));
   const [signingOut, setSigningOut] = useState(false);
   const currentPath = pathname.replace(/\/$/, "");
   const section = pages.find((item) => item.children?.some((child) => child.path === currentPath));
@@ -200,18 +200,21 @@ export function AdminShell({
           )
           : defaultDom
       }
-      actionsRender={() => [<span key="company" className={styles.companyName} title={companyName ?? "平台管理"}>{companyName ?? "平台管理"}</span>, ...availableHeaderPages.map(({ path, name, icon }) => (
-        <MenuLink
-          key={path}
-          href={path}
-          className={styles.headerAction}
-          aria-label={name}
-          aria-current={currentPath === path ? "page" : undefined}
-          title={name}
-        >
-          {icon}
-        </MenuLink>
-      ))]}
+      actionsRender={() => [
+        ...(companyName ? [<span key="company" className={styles.companyName} title={companyName}>{companyName}</span>] : []),
+        ...availableHeaderPages.map(({ path, name, icon }) => (
+          <MenuLink
+            key={path}
+            href={path}
+            className={styles.headerAction}
+            aria-label={name}
+            aria-current={currentPath === path ? "page" : undefined}
+            title={name}
+          >
+            {icon}
+          </MenuLink>
+        )),
+      ]}
       avatarProps={{
         render: () => (
           <Dropdown

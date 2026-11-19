@@ -14,7 +14,7 @@ const MonthlyReport = lazy(() => import("@/components/reports/monthly-report").t
 const ArchiveManager = lazy(() => import("@/components/fuel/archive-manager").then(({ ArchiveManager }) => ({ default: ArchiveManager })));
 const VehicleImport = lazy(() => import("@/app/(admin)/vehicles/vehicle-import").then(({ VehicleImport }) => ({ default: VehicleImport })));
 const LedgerImport = lazy(() => import("@/app/(admin)/import/ledger-import").then(({ LedgerImport }) => ({ default: LedgerImport })));
-const SystemSettingsPanel = lazy(() => import("@/components/system-settings-form").then(({ SystemSettingsPanel }) => ({ default: SystemSettingsPanel })));
+const CompanySettingsPanel = lazy(() => import("@/components/system-settings-form").then(({ CompanySettingsPanel }) => ({ default: CompanySettingsPanel })));
 const CalculationDocs = lazy(() => import("@/app/(admin)/calculation-docs/calculation-docs").then(({ CalculationDocs }) => ({ default: CalculationDocs })));
 const ApiDocs = lazy(() => import("@/app/(admin)/docs/api-docs").then(({ ApiDocs }) => ({ default: ApiDocs })));
 const UserManagement = lazy(() => import("@/components/user-management").then(({ UserManagement }) => ({ default: UserManagement })));
@@ -52,7 +52,7 @@ export function DesktopPage({ pathname, search, timeZone, permissions }: {
     case "/import":
       return <LedgerImport />;
     case "/settings":
-      return <AdminPage title={hasPermission(permissions, "platform:settings") ? "平台配置" : "公司配置"}><SystemSettingsPanel /></AdminPage>;
+      return <AdminPage title="公司配置"><CompanySettingsPanel /></AdminPage>;
     case "/users":
       return <UserManagement key={search} initialCompanyId={new URLSearchParams(search).get("companyId") ?? undefined} />;
     case "/companies":
