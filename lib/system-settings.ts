@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { cache } from "react";
 import { getDatabaseUrl } from "./db";
+import { getCompanyContext } from "./company-context";
 import { readLegacyStoredSettings, readStoredSettings, type SystemSettings } from "./system-settings-store";
 
 export type { SystemSettings } from "./system-settings-store";
@@ -103,5 +104,10 @@ export function getSystemSettingsSnapshot() {
 }
 
 export async function getSystemSettings() {
-  return (await getSystemSettingsSnapshot()).settings;
+  const settings = (await getSystemSettingsSnapshot()).settings;
+  const companyId = getCompanyContext()?.companyId;
+  if (!companyId) return settings;
+  const { getCompanyBusinessSettings } = await import("./company-settings");
+  const company = await getCompanyBusinessSettings(companyId);
+  return { ...settings, timeZone: company.timeZone, baselineSamples: company.baselineSamples, anomalyMultiplier: company.anomalyMultiplier };
 }

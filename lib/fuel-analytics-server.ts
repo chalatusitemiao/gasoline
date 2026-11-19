@@ -3,6 +3,7 @@ import "server-only";
 import Decimal from "decimal.js";
 import { and, desc, eq, gte, gt, lt, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { requireCompanyId } from "@/lib/company-context";
 import { drivers, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
 import {
   shiftMonth,
@@ -86,8 +87,9 @@ export async function getFuelAnalytics(
   to: string,
   currentMonth: string,
 ): Promise<FuelAnalytics> {
+  const companyId = await requireCompanyId();
   const dateRange = (first: string, last: string) =>
-    and(gte(fuelRecords.date, `${first}-01`), lt(fuelRecords.date, `${shiftMonth(last, 1)}-01`));
+    and(eq(fuelRecords.companyId, companyId), gte(fuelRecords.date, `${first}-01`), lt(fuelRecords.date, `${shiftMonth(last, 1)}-01`));
   const isDashboard = view === "dashboard";
   const rankingFrom = isDashboard ? currentMonth : from;
 
@@ -96,7 +98,7 @@ export async function getFuelAnalytics(
     const vehicleMonthRows = await tx
       .select({ vehicleId: vehicles.id, plate: vehicles.plate, month: monthKey, ...rawMetrics })
       .from(fuelRecords)
-      .innerJoin(vehicles, eq(vehicles.id, fuelRecords.vehicleId))
+      .innerJoin(vehicles, and(eq(vehicles.id, fuelRecords.vehicleId), eq(vehicles.companyId, companyId)))
       .where(dateRange(from, to))
       .groupBy(vehicles.id, vehicles.plate, monthKey)
       .orderBy(vehicles.plate, monthKey);
@@ -105,8 +107,8 @@ export async function getFuelAnalytics(
       ? await tx
         .select({ driverId: drivers.id, name: drivers.name, plate: vehicles.plate, ...rawMetrics })
         .from(fuelRecords)
-        .innerJoin(drivers, eq(drivers.id, fuelRecords.driverId))
-        .innerJoin(vehicles, eq(vehicles.id, fuelRecords.vehicleId))
+        .innerJoin(drivers, and(eq(drivers.id, fuelRecords.driverId), eq(drivers.companyId, companyId)))
+        .innerJoin(vehicles, and(eq(vehicles.id, fuelRecords.vehicleId), eq(vehicles.companyId, companyId)))
         .where(dateRange(rankingFrom, to))
         .groupBy(drivers.id, drivers.name, vehicles.id, vehicles.plate)
       : [];
@@ -125,7 +127,8 @@ export async function getFuelAnalytics(
     }));
 
     if (view === "vehicles") {
-      const roster = await tx.select({ id: vehicles.id, plate: vehicles.plate }).from(vehicles);
+      const roster = await tx.select({ id: vehicles.id, plate: vehicles.plate }).from(vehicles)
+        .where(eq(vehicles.companyId, companyId));
       for (const vehicle of roster) {
         if (vehicleGroups.has(vehicle.id)) continue;
         activeVehicles.push({
@@ -151,9 +154,9 @@ export async function getFuelAnalytics(
           reason: fuelRecords.anomalyReason,
         })
         .from(fuelRecords)
-        .innerJoin(vehicles, eq(vehicles.id, fuelRecords.vehicleId))
-        .innerJoin(drivers, eq(drivers.id, fuelRecords.driverId))
-        .where(eq(fuelRecords.isAnomaly, true))
+        .innerJoin(vehicles, and(eq(vehicles.id, fuelRecords.vehicleId), eq(vehicles.companyId, companyId)))
+        .innerJoin(drivers, and(eq(drivers.id, fuelRecords.driverId), eq(drivers.companyId, companyId)))
+        .where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.isAnomaly, true)))
         .orderBy(desc(fuelRecords.date), desc(fuelRecords.sequence))
         .limit(8)
       : [];

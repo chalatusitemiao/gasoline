@@ -2,10 +2,18 @@ import "server-only";
 
 import { ApiError } from "./api-error";
 import { getAuthOrigin, getRequestSession } from "./auth";
+import { withCompanyContext } from "./company-context";
 import { hasPermission, type Permission, type UserRole } from "./permissions";
 import { withSystemSettings } from "./system-settings";
 
-export type ApiActor = { id: string; name: string; role: UserRole; permissions: readonly Permission[] };
+export type ApiActor = {
+  id: string;
+  name: string;
+  role: UserRole;
+  permissions: readonly Permission[];
+  companyId: string | null;
+  companyName: string | null;
+};
 export { ApiError } from "./api-error";
 
 export function apiResponse(status: number, data: unknown, message: string, extra?: Headers) {
@@ -64,12 +72,14 @@ export async function apiRoute<T>(
       if (permission && !hasPermission(session.user.permissions, permission)) {
         return apiResponse(403, null, "当前账号没有执行此操作的权限");
       }
-      const result = await handle({
+      const result = await withCompanyContext(session.user.companyId, () => handle({
         id: session.user.id,
         name: session.user.name,
         role: session.user.role,
         permissions: session.user.permissions,
-      });
+        companyId: session.user.companyId,
+        companyName: session.user.companyName,
+      }));
       return result instanceof Response ? result : apiResponse(options.status ?? 200, result, "操作成功");
     } catch (error) {
       return apiFailure(error);

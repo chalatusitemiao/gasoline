@@ -9,9 +9,11 @@ function WebLink(props: AppLinkProps) {
   return <Link {...props} />;
 }
 
-export function WebNavigationProvider({ MenuLink, userId, permissions, children }: {
+export function WebNavigationProvider({ MenuLink, userId, companyId, companyName, permissions, children }: {
   MenuLink?: AppNavigation["MenuLink"];
   userId?: string;
+  companyId?: string | null;
+  companyName?: string | null;
   permissions?: AppNavigation["permissions"];
   children: ReactNode;
 }) {
@@ -22,6 +24,8 @@ export function WebNavigationProvider({ MenuLink, userId, permissions, children 
     <AppNavigationProvider navigation={{
       pathname,
       userId,
+      companyId,
+      companyName,
       permissions,
       Link: WebLink,
       MenuLink,

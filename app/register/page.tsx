@@ -5,7 +5,7 @@ import { WebNavigationProvider } from "@/app/web-navigation";
 import { getPageSession } from "@/lib/auth";
 import { homePath } from "@/lib/login-path";
 
-export const metadata: Metadata = { title: "注册账号" };
+export const metadata: Metadata = { title: "初始化超级管理员" };
 
 export default async function RegisterPage() {
   const { registrationUnavailable, session } = await getPageSession();

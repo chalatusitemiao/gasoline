@@ -8,6 +8,8 @@ export type AppLinkProps = Omit<ComponentPropsWithoutRef<"a">, "href"> & { href:
 export type AppNavigation = {
   pathname: string;
   userId?: string;
+  companyId?: string | null;
+  companyName?: string | null;
   permissions?: readonly Permission[];
   Link: ComponentType<AppLinkProps>;
   MenuLink?: ComponentType<AppLinkProps>;

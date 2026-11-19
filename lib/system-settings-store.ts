@@ -2,13 +2,14 @@ import "server-only";
 
 import { get } from "@vercel/blob";
 import { and, eq } from "drizzle-orm";
-import {
-  createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID,
-} from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { getDb } from "./db";
 import { systemSettingsTable } from "./db/schema";
+import { decryptStoredSettings, encryptStoredSettings as encrypt } from "./settings-crypto.mjs";
+
+export { getAuthSecret } from "./settings-crypto.mjs";
 
 export type SystemSettings = {
   authUrl: string;
@@ -24,30 +25,10 @@ const settingsId = "fleet";
 
 export class SettingsConflictError extends Error {}
 
-export function getAuthSecret() {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret || secret.length < 32) throw new Error("请设置至少 32 个字符的 BETTER_AUTH_SECRET");
-  return secret;
-}
-
-function settingsKey() {
-  return createHmac("sha256", getAuthSecret()).update("gasoline/settings/v1").digest();
-}
-
-function encrypt(settings: SystemSettings) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", settingsKey(), iv);
-  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(settings), "utf8"), cipher.final()]);
-  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64url");
-}
-
 function decrypt(value: string): SystemSettings {
-  const encrypted = Buffer.from(value, "base64url");
-  const decipher = createDecipheriv("aes-256-gcm", settingsKey(), encrypted.subarray(0, 12));
-  decipher.setAuthTag(encrypted.subarray(12, 28));
   const {
     authUrl, username, passwordHash, timeZone, baselineSamples, anomalyMultiplier,
-  }: SystemSettings = JSON.parse(Buffer.concat([decipher.update(encrypted.subarray(28)), decipher.final()]).toString("utf8"));
+  } = decryptStoredSettings(value) as SystemSettings;
   return { authUrl, username, passwordHash, timeZone, baselineSamples, anomalyMultiplier };
 }
 

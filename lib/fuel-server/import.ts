@@ -1,14 +1,16 @@
 import "server-only";
 
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { ApiError } from "@/lib/api-error";
+import { requireCompanyId } from "@/lib/company-context";
+import { getCompanyBusinessSettings } from "@/lib/company-settings";
 import { drivers, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
 import {
   FUEL_IMPORT_LIMIT, fuelAmountSchema, fuelDateSchema, fuelLitersSchema, fuelOdometerSchema, fuelTypeSchema,
   fuelUnitPriceSchema, plateKey, vehicleInputSchema,
 } from "@/lib/fuel";
 import { todayInBusinessZone } from "@/lib/fuel-calendar";
-import { getSystemSettings } from "@/lib/system-settings";
 import { FuelDecimal, recalculateVehicles } from "./calculations";
 import { displayPlate, driverNameKey } from "./catalog";
 import { fuelActorFields } from "./records";
@@ -114,21 +116,23 @@ function parseRow(value: unknown, rowNumber: number, today: string, date1904: bo
 }
 
 export async function importFuel(input: z.output<typeof fuelImportSchema>, actor: FuelActor) {
-  const settings = await getSystemSettings();
-  const today = todayInBusinessZone(settings.timeZone);
-  const issues: ImportIssue[] = [];
-  const valid: ParsedRow[] = [];
-  input.rows.forEach((value, index) => {
-    const parsed = parseRow(value, index + 2, today, input.date1904);
-    if ("message" in parsed) issues.push(parsed);
-    else valid.push(parsed);
-  });
-  if (!valid.length) return { imported: 0, issues };
-
+  const companyId = await requireCompanyId();
+  if (actor.companyId !== companyId) throw new ApiError(403, "当前账号无权操作该公司数据");
   return writeFuel(async (tx) => {
+    const settings = await getCompanyBusinessSettings(companyId, tx);
+    const today = todayInBusinessZone(settings.timeZone);
+    const issues: ImportIssue[] = [];
+    const valid: ParsedRow[] = [];
+    input.rows.forEach((value, index) => {
+      const parsed = parseRow(value, index + 2, today, input.date1904);
+      if ("message" in parsed) issues.push(parsed);
+      else valid.push(parsed);
+    });
+    if (!valid.length) return { imported: 0, issues };
+
     const nameKeys = [...new Set(valid.map((row) => row.driverKey))];
     const existingDrivers = await tx.select({ id: drivers.id, nameKey: drivers.nameKey })
-      .from(drivers).where(inArray(drivers.nameKey, nameKeys));
+      .from(drivers).where(and(eq(drivers.companyId, companyId), inArray(drivers.nameKey, nameKeys)));
     const driverIds = new Map<string, string | null>();
     for (const driver of existingDrivers) {
       driverIds.set(driver.nameKey, driverIds.has(driver.nameKey) ? null : driver.id);
@@ -136,23 +140,24 @@ export async function importFuel(input: z.output<typeof fuelImportSchema>, actor
 
     const rows = valid.filter((row) => {
       if (driverIds.get(row.driverKey) !== null) return true;
-      issues.push({ rowNumber: row.rowNumber, message: "存在同名司机，无法确认对应档案" });
+      issues.push({ rowNumber: row.rowNumber, message: "本公司存在同名司机，无法确认对应档案，请先区分司机档案" });
       return false;
     });
     if (!rows.length) return { imported: 0, issues: issues.sort((a, b) => a.rowNumber - b.rowNumber) };
 
     const plateKeys = [...new Set(rows.map((row) => row.plateKey))];
     const vehicleFields = { id: vehicles.id, key: vehicles.plateKey, fuelType: vehicles.fuelType };
-    const existingVehicles = await tx.select(vehicleFields).from(vehicles).where(inArray(vehicles.plateKey, plateKeys));
+    const existingVehicles = await tx.select(vehicleFields).from(vehicles)
+      .where(and(eq(vehicles.companyId, companyId), inArray(vehicles.plateKey, plateKeys)));
     const vehicleMap = new Map(existingVehicles.map((vehicle) => [vehicle.key, vehicle]));
     const newVehicles = new Map<string, typeof vehicles.$inferInsert>();
     const newDrivers = new Map<string, typeof drivers.$inferInsert>();
     for (const row of rows) {
       if (!vehicleMap.has(row.plateKey) && !newVehicles.has(row.plateKey)) {
-        newVehicles.set(row.plateKey, { plate: row.plate, plateKey: row.plateKey, fuelType: input.fuelType });
+        newVehicles.set(row.plateKey, { companyId, plate: row.plate, plateKey: row.plateKey, fuelType: input.fuelType });
       }
       if (!driverIds.has(row.driverKey) && !newDrivers.has(row.driverKey)) {
-        newDrivers.set(row.driverKey, { name: row.driver, nameKey: row.driverKey });
+        newDrivers.set(row.driverKey, { companyId, name: row.driver, nameKey: row.driverKey });
       }
     }
 
@@ -173,6 +178,7 @@ export async function importFuel(input: z.output<typeof fuelImportSchema>, actor
       if (!vehicle || !driverId) throw new Error("导入关联档案写入失败");
       affected.add(vehicle.id);
       return {
+        companyId,
         vehicleId: vehicle.id,
         driverId,
         fuelType: vehicle.fuelType,
@@ -186,7 +192,7 @@ export async function importFuel(input: z.output<typeof fuelImportSchema>, actor
       };
     });
     await tx.insert(fuelRecords).values(inserts);
-    await recalculateVehicles(tx, [...affected], settings);
+    await recalculateVehicles(tx, [...affected], settings, companyId);
 
     return { imported: inserts.length, issues: issues.sort((a, b) => a.rowNumber - b.rowNumber) };
   });

@@ -44,10 +44,12 @@ function WebMenuLink({ children, ...props }: AppLinkProps) {
   );
 }
 
-export function WebAdminNavigation({ userId, permissions, children }: {
+export function WebAdminNavigation({ userId, companyId, companyName, permissions, children }: {
   userId: string;
+  companyId: string | null;
+  companyName: string | null;
   permissions: readonly Permission[];
   children: ReactNode;
 }) {
-  return <WebNavigationProvider MenuLink={WebMenuLink} userId={userId} permissions={permissions}>{children}</WebNavigationProvider>;
+  return <WebNavigationProvider MenuLink={WebMenuLink} userId={userId} companyId={companyId} companyName={companyName} permissions={permissions}>{children}</WebNavigationProvider>;
 }

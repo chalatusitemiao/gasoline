@@ -33,6 +33,8 @@ try {
   const code = migrationErrorCode(error);
   const message = code === "DATABASE_MISMATCH"
     ? "数据库迁移失败，DATABASE_URL_UNPOOLED 与 DATABASE_URL 必须指向同一个数据库。"
+    : code === "LEGACY_COMPANY_SETTINGS"
+      ? "默认公司业务配置迁移失败，请检查原有业务时区、基线样本数和异常倍数，修正后重新启动。"
     : `数据库迁移失败${code ? `（${code}）` : ""}，请核对数据库连接和迁移权限。`;
   console.error(message);
   process.exitCode = 1;

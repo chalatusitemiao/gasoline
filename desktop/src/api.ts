@@ -7,11 +7,13 @@ export const serverStorageKey = "gasoline.desktop.server";
 export const sessionExpiredEvent = "gasoline:session-expired";
 
 type NativeResponse = { status: number; body: string; contentType: string | null };
-type AccountSettings = { id: string; name: string; role: UserRole; permissions: Permission[]; timeZone: string };
+type AccountSettings = { id: string; name: string; role: UserRole; companyId: string | null; companyName: string | null; permissions: Permission[]; timeZone: string };
 export type DesktopSession = {
   id: string | null;
   name: string | null;
   role: UserRole | null;
+  companyId: string | null;
+  companyName: string | null;
   permissions: Permission[];
   timeZone: string | null;
   registrationUnavailable: string | null;
@@ -73,7 +75,7 @@ async function readSession(signal: AbortSignal): Promise<DesktopSession> {
   const response = await apiRequest("/api/me", { signal, cache: "no-store" });
   const result = await response.json().catch(() => null) as ApiResponse<AccountSettings> | null;
   if (response.status === 401 && result?.code === 401 && result.data === null) {
-    return { id: null, name: null, role: null, permissions: [], timeZone: null, registrationUnavailable: null };
+    return { id: null, name: null, role: null, companyId: null, companyName: null, permissions: [], timeZone: null, registrationUnavailable: null };
   }
   const settings = result?.data;
   if (!response.ok || result?.code !== 0 || !settings || typeof settings.id !== "string" ||
@@ -86,6 +88,8 @@ async function readSession(signal: AbortSignal): Promise<DesktopSession> {
     id: settings.id,
     name: settings.name,
     role: settings.role,
+    companyId: settings.companyId ?? null,
+    companyName: settings.companyName ?? null,
     permissions: settings.permissions,
     timeZone: settings.timeZone,
     registrationUnavailable: "系统已有后台账号，请直接登录。",

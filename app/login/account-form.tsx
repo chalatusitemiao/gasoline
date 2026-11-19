@@ -59,8 +59,8 @@ function AccountForm(props: AccountFormProps) {
   const isRegistration = props.mode === "register";
   const registrationUnavailable = isRegistration ? props.registrationUnavailable : null;
   const submitting = phase === "submitting";
-  const heading = isRegistration ? "注册账号" : "账号密码登录";
-  const submitText = isRegistration ? "注册" : "登录";
+  const heading = isRegistration ? "初始化超级管理员" : "账号密码登录";
+  const submitText = isRegistration ? "创建超级管理员" : "登录";
   const submittingText = `正在${submitText}…`;
   const navigationText = isRegistration ? "注册成功，正在跳转…" : "登录成功，正在进入后台…";
   const error = errorMessage || (phase === "accepted" && !navigating ? "页面跳转未完成，请重试。" : "");
@@ -121,12 +121,12 @@ function AccountForm(props: AccountFormProps) {
     <ProLoginForm<AccountFields>
       logo={<BrandMark size={44} />}
       title={<span id="account-title" role="heading" aria-level={1}>车辆监控</span>}
-      subTitle="用油管理后台"
+      subTitle="多公司用油管理后台"
       contentStyle={{ minWidth: "min(280px, 100%)", maxWidth: "min(75vw, 100%)" }}
       otherStyle={{ textAlign: "center" }}
       actions={submitting || navigating ? null : (
         <AppLink className={styles.accountLink} href={isRegistration ? "/login" : "/register"}>
-          {isRegistration ? "返回登录" : "注册账号"}
+          {isRegistration ? "返回登录" : "初始化超级管理员"}
         </AppLink>
       )}
       formRef={formRef}
@@ -153,6 +153,7 @@ function AccountForm(props: AccountFormProps) {
       ) : !navigating && (
         <>
           {error && <Alert className={styles.error} type="error" message={error} showIcon />}
+          {isRegistration && <Alert className={styles.error} type="info" showIcon message="仅用于首次初始化平台。公司账号由超级管理员或公司管理员创建。" />}
           <ProFormText
             name="username"
             placeholder="输入账号"

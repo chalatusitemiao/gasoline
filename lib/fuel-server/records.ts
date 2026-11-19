@@ -3,6 +3,8 @@ import "server-only";
 import { and, count, desc, eq, gte, ilike, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
+import { requireCompanyId } from "@/lib/company-context";
+import { getCompanyBusinessSettings } from "@/lib/company-settings";
 import { drivers, fuelChanges, fuelDeletions, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
 import {
   fuelDateSchema, fuelRecordInputSchema, plateKey, type FuelDeletion, type FuelFieldChange,
@@ -56,14 +58,15 @@ function formatRecord(row: RecordRow): FuelRecord {
   return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
 
-function selectRecords(db: FuelReadDb) {
+function selectRecords(db: FuelReadDb, companyId: string) {
   return db.select(selection).from(fuelRecords)
-    .innerJoin(vehicles, eq(fuelRecords.vehicleId, vehicles.id))
-    .innerJoin(drivers, eq(fuelRecords.driverId, drivers.id));
+    .innerJoin(vehicles, and(eq(fuelRecords.vehicleId, vehicles.id), eq(vehicles.companyId, companyId)))
+    .innerJoin(drivers, and(eq(fuelRecords.driverId, drivers.id), eq(drivers.companyId, companyId)));
 }
 
-async function findRecord(db: FuelReadDb, id: string) {
-  const [row] = await selectRecords(db).where(eq(fuelRecords.id, id)).limit(1);
+async function findRecord(db: FuelReadDb, id: string, companyId: string) {
+  const [row] = await selectRecords(db, companyId)
+    .where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.id, id))).limit(1);
   if (!row) throw new ApiError(404, "加油记录不存在");
   return row;
 }
@@ -84,11 +87,14 @@ const recordFilters = z.object({
 });
 const recordPageFilters = pageSchema.extend(recordFilters.shape);
 
-function recordWhere({ from, to, vehicleId, driverId, keyword, anomaliesOnly }: z.output<typeof recordFilters>) {
+function recordWhere({ from, to, vehicleId, driverId, keyword, anomaliesOnly }: z.output<typeof recordFilters>, companyId: string) {
   if (from && to && from > to) throw new ApiError(400, "开始日期不能晚于结束日期");
   const pattern = searchPattern(keyword);
   const normalizedPlate = plateKey(keyword);
   return and(
+    eq(fuelRecords.companyId, companyId),
+    eq(vehicles.companyId, companyId),
+    eq(drivers.companyId, companyId),
     from ? gte(fuelRecords.date, from) : undefined,
     to ? lte(fuelRecords.date, to) : undefined,
     vehicleId ? eq(fuelRecords.vehicleId, vehicleId) : undefined,
@@ -103,8 +109,9 @@ function recordWhere({ from, to, vehicleId, driverId, keyword, anomaliesOnly }: 
 }
 
 export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
+  const companyId = await requireCompanyId();
   const { page, pageSize, ...filters } = parse(recordPageFilters, query);
-  const where = recordWhere(filters);
+  const where = recordWhere(filters, companyId);
   return readFuel(async (db) => {
     const [summary] = await db.select({
       recordCount: count(),
@@ -117,7 +124,7 @@ export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
       .innerJoin(vehicles, eq(fuelRecords.vehicleId, vehicles.id))
       .innerJoin(drivers, eq(fuelRecords.driverId, drivers.id)).where(where);
 
-    const items = await selectRecords(db).where(where)
+    const items = await selectRecords(db, companyId).where(where)
       .orderBy(...recordOrder)
       .limit(pageSize).offset((page - 1) * pageSize);
     const { intervalLiters, ...totals } = summary;
@@ -137,7 +144,8 @@ export async function listRecords(query: unknown): Promise<FuelRecordsPage> {
 }
 
 export async function exportRecords(query: unknown): Promise<FuelRecordExportRow[]> {
-  const where = recordWhere(parse(recordFilters, query));
+  const companyId = await requireCompanyId();
+  const where = recordWhere(parse(recordFilters, query), companyId);
   return readFuel(async (db) => db.select(exportSelection).from(fuelRecords)
     .innerJoin(vehicles, eq(fuelRecords.vehicleId, vehicles.id))
     .innerJoin(drivers, eq(fuelRecords.driverId, drivers.id))
@@ -145,15 +153,16 @@ export async function exportRecords(query: unknown): Promise<FuelRecordExportRow
 }
 
 export async function recordDetail(id: string): Promise<FuelRecordDetail> {
+  const companyId = await requireCompanyId();
   return readFuel(async (db) => {
-    const record = await findRecord(db, id);
+    const record = await findRecord(db, id, companyId);
     const changes = await db.select({
       id: fuelChanges.id,
       changedBy: fuelChanges.changedBy,
       changedAt: fuelChanges.changedAt,
       reason: fuelChanges.reason,
       changes: fuelChanges.changes,
-    }).from(fuelChanges).where(eq(fuelChanges.recordId, id))
+    }).from(fuelChanges).where(and(eq(fuelChanges.companyId, companyId), eq(fuelChanges.recordId, id)))
       .orderBy(desc(fuelChanges.changedAt), desc(fuelChanges.id));
     return {
       record: formatRecord(record),
@@ -166,13 +175,13 @@ export function fuelActorFields(actor: FuelActor) {
   return { createdById: actor.id, createdBy: actor.name, updatedById: actor.id, updatedBy: actor.name };
 }
 
-async function getAssignments(db: FuelTx, input: RecordInput, previousDriverId?: string) {
+async function getAssignments(db: FuelTx, input: RecordInput, companyId: string, previousDriverId?: string) {
   const [vehicle] = await db.select({ plate: vehicles.plate }).from(vehicles)
-    .where(eq(vehicles.id, input.vehicleId)).limit(1);
+    .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, input.vehicleId))).limit(1);
   if (!vehicle) throw new ApiError(400, "所选车辆不存在");
 
   const [driver] = await db.select({ name: drivers.name, isActive: drivers.isActive }).from(drivers)
-    .where(eq(drivers.id, input.driverId)).limit(1);
+    .where(and(eq(drivers.companyId, companyId), eq(drivers.id, input.driverId))).limit(1);
   if (!driver || (!driver.isActive && input.driverId !== previousDriverId)) {
     throw new ApiError(400, "请选择在用司机");
   }
@@ -180,31 +189,36 @@ async function getAssignments(db: FuelTx, input: RecordInput, previousDriverId?:
 }
 
 export async function createRecord(input: RecordInput, actor: FuelActor) {
-  const settings = await getSystemSettings();
-  validateRefuelDate(input.date, todayInBusinessZone(settings.timeZone));
+  const companyId = await requireCompanyId();
+  if (actor.companyId !== companyId) throw new ApiError(403, "当前账号无权操作该公司数据");
   return writeFuel(async (tx) => {
-    await getAssignments(tx, input);
+    const settings = await getCompanyBusinessSettings(companyId, tx);
+    validateRefuelDate(input.date, todayInBusinessZone(settings.timeZone));
+    await getAssignments(tx, input, companyId);
     const [record] = await tx.insert(fuelRecords).values({
       ...input,
       ...manualAmounts(input.liters, input.unitPrice, input.odometer),
       ...fuelActorFields(actor),
+      companyId,
       source: "manual",
     }).returning({ id: fuelRecords.id });
-    await recalculateVehicles(tx, [input.vehicleId], settings);
-    return formatRecord(await findRecord(tx, record.id));
+    await recalculateVehicles(tx, [input.vehicleId], settings, companyId);
+    return formatRecord(await findRecord(tx, record.id, companyId));
   });
 }
 
 export async function updateRecord(id: string, input: RecordInput & { reason: string }, actor: FuelActor) {
+  const companyId = await requireCompanyId();
+  if (actor.companyId !== companyId) throw new ApiError(403, "当前账号无权操作该公司数据");
   const { reason, ...fields } = input;
-  const settings = await getSystemSettings();
-  validateRefuelDate(fields.date, todayInBusinessZone(settings.timeZone));
   return writeFuel(async (tx) => {
-    const previous = await findRecord(tx, id);
+    const settings = await getCompanyBusinessSettings(companyId, tx);
+    validateRefuelDate(fields.date, todayInBusinessZone(settings.timeZone));
+    const previous = await findRecord(tx, id, companyId);
     if (!actor.permissions.includes("records:edit:any") && previous.createdById !== actor.id) {
       throw new ApiError(403, "录入员只能修改自己创建的加油记录");
     }
-    const { vehicle, driver } = await getAssignments(tx, fields, previous.driverId);
+    const { vehicle, driver } = await getAssignments(tx, fields, companyId, previous.driverId);
     const next = manualAmounts(fields.liters, fields.unitPrice, fields.odometer);
     const samePricing = next.liters === previous.liters && next.unitPrice === previous.unitPrice;
     const amount = samePricing ? previous.amount : next.amount;
@@ -246,8 +260,9 @@ export async function updateRecord(id: string, input: RecordInput & { reason: st
       updatedAt: now,
       updatedBy: actor.name,
       updatedById: actor.id,
-    }).where(eq(fuelRecords.id, id));
+    }).where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.id, id)));
     await tx.insert(fuelChanges).values({
+      companyId,
       recordId: id,
       changedById: actor.id,
       changedBy: actor.name,
@@ -256,8 +271,8 @@ export async function updateRecord(id: string, input: RecordInput & { reason: st
       changes,
     });
 
-    await recalculateVehicles(tx, [...new Set([previous.vehicleId, fields.vehicleId])], settings);
-    return formatRecord(await findRecord(tx, id));
+    await recalculateVehicles(tx, [...new Set([previous.vehicleId, fields.vehicleId])], settings, companyId);
+    return formatRecord(await findRecord(tx, id, companyId));
   });
 }
 
@@ -266,15 +281,18 @@ function deletionCutoff(timeZone: string) {
 }
 
 export async function deleteRecord(id: string, reason: string, actor: FuelActor) {
-  const settings = await getSystemSettings();
+  const companyId = await requireCompanyId();
+  if (actor.companyId !== companyId) throw new ApiError(403, "当前账号无权操作该公司数据");
   return writeFuel(async (tx) => {
-    const row = await findRecord(tx, id);
+    const settings = await getCompanyBusinessSettings(companyId, tx);
+    const row = await findRecord(tx, id, companyId);
     const [metadata] = await tx.select({
       sequence: fuelRecords.sequence,
       createdById: fuelRecords.createdById,
       updatedById: fuelRecords.updatedById,
-    }).from(fuelRecords).where(eq(fuelRecords.id, id)).limit(1);
+    }).from(fuelRecords).where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.id, id))).limit(1);
     await tx.insert(fuelDeletions).values({
+      companyId,
       recordId: id,
       plate: row.plate,
       deletedById: actor.id,
@@ -282,21 +300,24 @@ export async function deleteRecord(id: string, reason: string, actor: FuelActor)
       reason,
       snapshot: { ...formatRecord(row), ...metadata },
     });
-    await tx.delete(fuelRecords).where(eq(fuelRecords.id, id));
-    await tx.delete(fuelDeletions).where(lt(fuelDeletions.deletedAt, deletionCutoff(settings.timeZone)));
-    await recalculateVehicles(tx, [row.vehicleId], settings);
+    await tx.delete(fuelRecords).where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.id, id)));
+    await tx.delete(fuelDeletions).where(and(
+      eq(fuelDeletions.companyId, companyId), lt(fuelDeletions.deletedAt, deletionCutoff(settings.timeZone)),
+    ));
+    await recalculateVehicles(tx, [row.vehicleId], settings, companyId);
     return { id };
   });
 }
 
 export async function listDeletions(query: unknown): Promise<FuelPage<FuelDeletion>> {
+  const companyId = await requireCompanyId();
   const { page, pageSize } = parse(pageSchema, query);
   const { timeZone } = await getSystemSettings();
   const cutoff = deletionCutoff(timeZone);
   const db = await getDb();
-  await db.delete(fuelDeletions).where(lt(fuelDeletions.deletedAt, cutoff));
+  await db.delete(fuelDeletions).where(and(eq(fuelDeletions.companyId, companyId), lt(fuelDeletions.deletedAt, cutoff)));
   return readFuel(async (db) => {
-    const where = gte(fuelDeletions.deletedAt, cutoff);
+    const where = and(eq(fuelDeletions.companyId, companyId), gte(fuelDeletions.deletedAt, cutoff));
     const [summary] = await db.select({ total: count() }).from(fuelDeletions).where(where);
     const rows = await db.select({
       id: fuelDeletions.id,
@@ -318,25 +339,31 @@ export async function listDeletions(query: unknown): Promise<FuelPage<FuelDeleti
 }
 
 export async function recentRecords(vehicleId: string, query: unknown) {
+  const companyId = await requireCompanyId();
   const { through, excludeId } = parse(z.object({ through: dateFilter, excludeId: idFilter }), query);
   const { timeZone } = await getSystemSettings();
   const today = todayInBusinessZone(timeZone);
   if (through) validateRefuelDate(through, today);
   return readFuel(async (db) => {
-    const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1);
+    const [vehicle] = await db.select({ id: vehicles.id }).from(vehicles)
+      .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, vehicleId))).limit(1);
     if (!vehicle) throw new ApiError(404, "车辆不存在");
 
     let before = lte(fuelRecords.date, through ?? today);
     if (excludeId) {
       const [target] = await db.select({ sequence: fuelRecords.sequence, date: fuelRecords.date })
-        .from(fuelRecords).where(eq(fuelRecords.id, excludeId)).limit(1);
+        .from(fuelRecords).where(and(
+          eq(fuelRecords.companyId, companyId), eq(fuelRecords.id, excludeId),
+        )).limit(1);
       if (!target) throw new ApiError(404, "加油记录不存在");
       const date = through ?? target.date;
       before = sql`(${fuelRecords.date}, ${fuelRecords.sequence}) < (${date}::date, ${target.sequence}::bigint)
         and ${fuelRecords.id} <> ${excludeId}::uuid`;
     }
 
-    const rows = await selectRecords(db).where(and(eq(fuelRecords.vehicleId, vehicleId), before))
+    const rows = await selectRecords(db, companyId).where(and(
+      eq(fuelRecords.companyId, companyId), eq(fuelRecords.vehicleId, vehicleId), before,
+    ))
       .orderBy(...recordOrder).limit(3);
     const items = rows.map(formatRecord);
     return { items, latest: items[0] ?? null };

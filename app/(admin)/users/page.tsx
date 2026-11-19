@@ -4,7 +4,7 @@ import { UserManagement } from "@/components/user-management";
 
 export const metadata: Metadata = { title: "账号管理" };
 
-export default async function UsersPage() {
+export default async function UsersPage({ searchParams }: { searchParams: Promise<{ companyId?: string }> }) {
   await requirePageSession("users:manage");
-  return <UserManagement />;
+  return <UserManagement initialCompanyId={(await searchParams).companyId} />;
 }

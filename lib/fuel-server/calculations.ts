@@ -1,7 +1,7 @@
 import "server-only";
 
 import Decimal from "decimal.js";
-import { asc, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { fuelRecords } from "@/lib/db/fuel-schema";
 import type { FuelAnomaly, FuelAnomalyAssessment } from "@/lib/fuel";
 import type { FuelTx } from "./shared";
@@ -40,6 +40,7 @@ export async function recalculateVehicles(
   tx: FuelTx,
   vehicleIds: string[],
   { baselineSamples, anomalyMultiplier }: { baselineSamples: number; anomalyMultiplier: number },
+  companyId: string,
 ) {
   const records = await tx.select({
     id: fuelRecords.id,
@@ -53,7 +54,7 @@ export async function recalculateVehicles(
     isAnomaly: fuelRecords.isAnomaly,
     anomalyReason: fuelRecords.anomalyReason,
   }).from(fuelRecords)
-    .where(inArray(fuelRecords.vehicleId, vehicleIds))
+    .where(and(eq(fuelRecords.companyId, companyId), inArray(fuelRecords.vehicleId, vehicleIds)))
     .orderBy(asc(fuelRecords.vehicleId), asc(fuelRecords.date), asc(fuelRecords.sequence));
 
   const history: Decimal[] = [];
@@ -130,7 +131,7 @@ export async function recalculateVehicles(
           anomaly_reason = calculated.anomaly_reason,
           is_anomaly = calculated.anomaly_reason is not null
       from (values ${sql.join(rows, sql`, `)}) as calculated(id, distance, consumption, baseline, anomaly_assessment, anomaly_reason)
-      where target.id = calculated.id
+      where target.id = calculated.id and target.company_id = ${companyId}::uuid
     `);
   }
 }

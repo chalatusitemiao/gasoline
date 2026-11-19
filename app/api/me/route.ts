@@ -8,6 +8,8 @@ export function GET(request: Request) {
       id: actor.id,
       name: actor.name,
       role: actor.role,
+      companyId: actor.companyId,
+      companyName: actor.companyName,
       permissions: actor.permissions,
       timeZone,
     };

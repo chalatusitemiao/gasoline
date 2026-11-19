@@ -1,9 +1,11 @@
-import { relations } from "drizzle-orm";
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+import { boolean, check, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { UserRole } from "../permissions";
+import { companies } from "./company-schema";
 
 export * from "./fuel-schema";
 export * from "./auth-guard-schema";
+export * from "./company-schema";
 
 export const systemSettingsTable = pgTable("system_settings", {
   id: text("id").primaryKey(),
@@ -16,13 +18,18 @@ export const user = pgTable("users", {
   name: text("name").notNull(),
   username: text("username").notNull().unique(),
   role: text("role").$type<UserRole>().default("viewer").notNull(),
+  companyId: uuid("company_id").references(() => companies.id),
   isActive: boolean("is_active").default(true).notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => [
+  index("users_company_role_idx").on(table.companyId, table.role),
+  uniqueIndex("users_single_super_admin_idx").on(table.role).where(sql`${table.role} = 'super_admin'`),
+  check("users_role_company_check", sql`(${table.role} = 'super_admin' and ${table.companyId} is null and ${table.isActive}) or (${table.role} in ('admin', 'operator', 'viewer') and ${table.companyId} is not null)`),
+]);
 
 export const userCredential = pgTable("user_credentials", {
   userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),

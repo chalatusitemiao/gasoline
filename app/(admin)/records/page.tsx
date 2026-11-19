@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requirePageSession } from "@/lib/auth";
 import { todayInBusinessZone } from "@/lib/fuel-calendar";
-import { getSystemSettings } from "@/lib/system-settings";
+import { getCompanyBusinessSettings } from "@/lib/company-settings";
 import { RecordsTable } from "./records-table";
 
 export const metadata: Metadata = { title: "加油记录" };
@@ -11,8 +11,8 @@ export default async function RecordsPage({
 }: {
   searchParams: Promise<{ anomaliesOnly?: string | string[] }>;
 }) {
-  await requirePageSession("records:view");
-  const [{ anomaliesOnly }, { timeZone }] = await Promise.all([searchParams, getSystemSettings()]);
+  const session = await requirePageSession("records:view");
+  const [{ anomaliesOnly }, { timeZone }] = await Promise.all([searchParams, getCompanyBusinessSettings(session.user.companyId!)]);
   const showAnomalies = anomaliesOnly === "true";
   return (
     <RecordsTable

@@ -52,7 +52,9 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
   const session = useQuery({
     queryKey: sessionKey,
     queryFn: ({ signal }) => loadSession(server, signal),
-    staleTime: Infinity,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: "always",
     retry: false,
   });
   const account = session.data;
@@ -62,11 +64,14 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
   const loginNext = pathname === "/" ? homePath : safeReturnTo(location);
 
   const endSession = useCallback((destination = "/login") => {
-    void queryClient.cancelQueries({ queryKey: sessionKey }, { revert: false });
+    void queryClient.cancelQueries(undefined, { revert: false });
+    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== sessionKey[0] });
     queryClient.setQueryData<DesktopSession>(sessionKey, (previous) => ({
       id: null,
       name: null,
       role: null,
+      companyId: null,
+      companyName: null,
       permissions: [],
       timeZone: null,
       registrationUnavailable: previous?.registrationUnavailable ?? null,
@@ -130,6 +135,8 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
     <AppNavigationProvider navigation={{
       pathname,
       userId: account.id ?? "",
+      companyId: account.companyId,
+      companyName: account.companyName,
       permissions: account.permissions,
       Link: DesktopLink,
       replace: replaceDesktopLocation,
@@ -160,9 +167,9 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
           </Suspense>
         </>
       ) : accountPage || pathname === "/" ? <AdminLoading /> : (
-        <AppQueryProvider key={account.id}>
+        <AppQueryProvider key={`${account.id}:${account.companyId ?? "platform"}:${account.role}`}>
           <Suspense fallback={<AdminLoading />}>
-            <AdminShell name={account.name} permissions={account.permissions}>
+            <AdminShell name={account.name} companyName={account.companyName} permissions={account.permissions}>
               <Suspense fallback={<AdminLoading />}>
                 <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} />
               </Suspense>

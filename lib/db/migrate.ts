@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool, type PoolClient } from "pg";
+import { migrateLegacyCompanySettings } from "./company-bootstrap.mjs";
 
 const connectionTimeoutMillis = 15_000;
 
@@ -34,6 +35,7 @@ export async function migrateDatabase(connectionString: string, applicationUrl: 
       await lock.query("SELECT pg_advisory_xact_lock(1662806122, 1)");
       if (connectionString !== applicationUrl) await verifyMigrationTarget(lock, applicationUrl);
       await migrate(drizzle(pool), { migrationsFolder: join(process.cwd(), "drizzle") });
+      await migrateLegacyCompanySettings(pool);
     } finally {
       await lock.query("ROLLBACK").catch(() => undefined);
       lock.release(true);

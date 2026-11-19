@@ -10,7 +10,8 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDatabaseUrl, getDb } from "./db";
 import { account, session, user, verification } from "./db/schema";
-import { authorizeFuelAccount, ensureLegacyFuelAccountMigrated, getRegistrationKey } from "./fuel-credentials";
+import { companies } from "./db/company-schema";
+import { authorizeFuelAccount, ensureLegacyFuelAccountMigrated, getRegistrationKey, hasRegisteredFuelAccount } from "./fuel-credentials";
 import { loginErrorMessage, loginSchema } from "./login-contract";
 import { loginPath, returnToHeader } from "./login-path";
 import { hasPermission, isUserRole, permissionsForRole, type Permission } from "./permissions";
@@ -94,7 +95,8 @@ export async function getAuth(requestHeaders: Headers, requestUrl?: string) {
 }
 
 export async function getRequestSession(requestHeaders: Headers, requestUrl?: string) {
-  if (!getDatabaseUrl() || !hasFleetAccount(await getSystemSettings())) return null;
+  if (!getDatabaseUrl()) return null;
+  if (!await hasRegisteredFuelAccount() && !hasFleetAccount(await getSystemSettings())) return null;
   const instance = await getAuth(requestHeaders, requestUrl);
   try {
     const result = await instance.api.getSession({ headers: requestHeaders });
@@ -107,8 +109,15 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
       username: user.username,
       role: user.role,
       isActive: user.isActive,
-    }).from(user).where(eq(user.id, result.user.id)).limit(1);
+      companyId: user.companyId,
+      companyName: companies.name,
+      companyIsActive: companies.isActive,
+    }).from(user).leftJoin(companies, eq(user.companyId, companies.id))
+      .where(eq(user.id, result.user.id)).limit(1);
     if (!accountUser?.isActive || !isUserRole(accountUser.role)) return null;
+    if (accountUser.role === "super_admin"
+      ? accountUser.companyId !== null
+      : !accountUser.companyId || !accountUser.companyIsActive) return null;
     return {
       ...result,
       user: {
@@ -116,6 +125,8 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
         name: accountUser.name,
         username: accountUser.username,
         role: accountUser.role,
+        companyId: accountUser.companyId,
+        companyName: accountUser.companyName,
         permissions: permissionsForRole(accountUser.role),
       },
     };
@@ -131,10 +142,10 @@ export const getPageSession = cache(async () => {
     if (!getDatabaseUrl()) {
       return { registrationUnavailable: "数据库尚未配置，请联系管理员。", session: null };
     }
-    const hasAccount = hasFleetAccount(await getSystemSettings());
+    const hasAccount = await hasRegisteredFuelAccount() || hasFleetAccount(await getSystemSettings());
     return {
       registrationUnavailable: hasAccount
-        ? "系统已有后台账号，请直接登录。"
+        ? "超级管理员已初始化，请直接登录。公司账号请联系管理员创建。"
         : getRegistrationKey() ? null : "当前环境未启用注册，请联系管理员。",
       session: hasAccount ? await getRequestSession(requestHeaders) : null,
     };

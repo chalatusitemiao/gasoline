@@ -5,6 +5,8 @@ import { FuelPage } from "@/components/fuel/ui";
 import { monthInBusinessZone, todayInBusinessZone } from "@/lib/fuel-calendar";
 import { hasPermission, pagePermission, type Permission } from "@/lib/permissions";
 
+const PlatformOverview = lazy(() => import("@/components/platform-overview").then(({ PlatformOverview }) => ({ default: PlatformOverview })));
+const CompanyManagement = lazy(() => import("@/components/company-management").then(({ CompanyManagement }) => ({ default: CompanyManagement })));
 const Dashboard = lazy(() => import("@/components/reports/dashboard").then(({ Dashboard }) => ({ default: Dashboard })));
 const FuelEditor = lazy(() => import("@/components/fuel/fuel-editor").then(({ FuelEditor }) => ({ default: FuelEditor })));
 const RecordsTable = lazy(() => import("@/app/(admin)/records/records-table").then(({ RecordsTable }) => ({ default: RecordsTable })));
@@ -23,14 +25,14 @@ export function DesktopPage({ pathname, search, timeZone, permissions }: {
   timeZone: string;
   permissions: readonly Permission[];
 }) {
-  const permission = pagePermission(pathname);
+  const permission = pagePermission(pathname, permissions);
   if (permission && !hasPermission(permissions, permission)) {
     return <Result status="403" title="没有访问权限" subTitle="当前账号无权访问此页面。" />;
   }
 
   switch (pathname) {
     case "/dashboard":
-      return <Dashboard />;
+      return hasPermission(permissions, "platform:view") ? <PlatformOverview /> : <Dashboard />;
     case "/refuel":
       return <FuelPage title="录入加油"><FuelEditor today={todayInBusinessZone(timeZone)} /></FuelPage>;
     case "/records": {
@@ -50,9 +52,11 @@ export function DesktopPage({ pathname, search, timeZone, permissions }: {
     case "/import":
       return <LedgerImport />;
     case "/settings":
-      return <AdminPage title="系统配置"><SystemSettingsPanel /></AdminPage>;
+      return <AdminPage title={hasPermission(permissions, "platform:settings") ? "平台配置" : "公司配置"}><SystemSettingsPanel /></AdminPage>;
     case "/users":
-      return <UserManagement />;
+      return <UserManagement key={search} initialCompanyId={new URLSearchParams(search).get("companyId") ?? undefined} />;
+    case "/companies":
+      return <CompanyManagement />;
     case "/calculation-docs":
       return <CalculationDocs />;
     case "/docs":

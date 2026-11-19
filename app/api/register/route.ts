@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { getAuth } from "@/lib/auth";
 import { getDatabaseUrl, getDb } from "@/lib/db";
-import { getRegistrationKey, matchesRegistrationKey, upsertFleetUser } from "@/lib/fuel-credentials";
+import { getRegistrationKey, hasRegisteredFuelAccount, matchesRegistrationKey, upsertFleetUser } from "@/lib/fuel-credentials";
 import { body } from "@/lib/fuel-server/shared";
 import { loginSchema, registrationCredentialsSchema } from "@/lib/login-contract";
 import { apiFailure, ApiError, apiResponse, authCookieHeaders, requireSameOrigin } from "@/lib/server-api";
@@ -23,11 +24,15 @@ export async function POST(request: Request) {
       if (!matchesRegistrationKey(registrationKey)) throw new ApiError(403, "注册密钥错误");
 
       const { settings, revision } = await getSystemSettingsSnapshot();
-      if (hasFleetAccount(settings)) throw new ApiError(409, "后台账号已注册，请登录");
+      if (hasFleetAccount(settings) || await hasRegisteredFuelAccount()) {
+        throw new ApiError(409, "超级管理员已注册，请登录");
+      }
 
       const passwordHash = await hashSettingsPassword(password);
       const db = await getDb();
       await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(1662806122, 2)`);
+        if (await hasRegisteredFuelAccount(tx)) throw new ApiError(409, "超级管理员已注册，请登录");
         await writeStoredSettings({ ...settings, username, passwordHash }, revision, tx);
         await upsertFleetUser(tx, username, passwordHash);
       });

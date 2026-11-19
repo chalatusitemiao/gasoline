@@ -98,3 +98,20 @@
   border-radius: var(--app-card-radius);
   background: var(--app-surface);
 }
+
+
+.companyName {
+  display: inline-block;
+  max-inline-size: min(30vw, 280px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-text-secondary);
+  padding-inline: 8px;
+}
+
+@media (max-width: 575px) {
+  .companyName {
+    max-inline-size: 112px;
+  }
+}

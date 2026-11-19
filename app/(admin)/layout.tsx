@@ -8,9 +8,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const session = await requirePageSession();
 
   return (
-    <AppQueryProvider key={session.user.id}>
-      <WebAdminNavigation userId={session.user.id} permissions={session.user.permissions}>
-        <AdminShell name={session.user.name} permissions={session.user.permissions}>{children}</AdminShell>
+    <AppQueryProvider key={`${session.user.id}:${session.user.companyId ?? "platform"}:${session.user.role}`}>
+      <WebAdminNavigation userId={session.user.id} companyId={session.user.companyId} companyName={session.user.companyName} permissions={session.user.permissions}>
+        <AdminShell name={session.user.name} companyName={session.user.companyName} permissions={session.user.permissions}>{children}</AdminShell>
       </WebAdminNavigation>
     </AppQueryProvider>
   );
