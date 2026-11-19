@@ -10,7 +10,7 @@ import styles from "./reports.module.css";
 
 const ChartCanvas = lazy(() => import("./chart"));
 
-function Chart({ height, ...props }: ComponentProps<typeof ChartCanvas> & { height: number }) {
+export function Chart({ height, ...props }: ComponentProps<typeof ChartCanvas> & { height: number }) {
   const frame = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
 
@@ -88,7 +88,7 @@ function formatChartValue(value: unknown, metric: MetricDefinition) {
     : "—";
 }
 
-function ChartPanel({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
+export function ChartPanel({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
     <section className={styles.panel} aria-label={title}>
       <div className={styles.panelHeading}>

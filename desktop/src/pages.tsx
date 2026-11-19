@@ -11,7 +11,12 @@ const Dashboard = lazy(() => import("@/components/reports/dashboard").then(({ Da
 const FuelEditor = lazy(() => import("@/components/fuel/fuel-editor").then(({ FuelEditor }) => ({ default: FuelEditor })));
 const RecordsTable = lazy(() => import("@/app/(admin)/records/records-table").then(({ RecordsTable }) => ({ default: RecordsTable })));
 const MonthlyReport = lazy(() => import("@/components/reports/monthly-report").then(({ MonthlyReport }) => ({ default: MonthlyReport })));
+const PartsCostReport = lazy(() => import("@/components/reports/parts-cost-report").then(({ PartsCostReport }) => ({ default: PartsCostReport })));
+const VehicleCostReport = lazy(() => import("@/components/reports/vehicle-cost-report").then(({ VehicleCostReport }) => ({ default: VehicleCostReport })));
+const PartsEntry = lazy(() => import("@/components/parts/parts-entry").then(({ PartsEntry }) => ({ default: PartsEntry })));
+const PartsRecords = lazy(() => import("@/components/parts/parts-records").then(({ PartsRecords }) => ({ default: PartsRecords })));
 const ArchiveManager = lazy(() => import("@/components/fuel/archive-manager").then(({ ArchiveManager }) => ({ default: ArchiveManager })));
+const ProjectManager = lazy(() => import("@/components/fuel/project-manager").then(({ ProjectManager }) => ({ default: ProjectManager })));
 const VehicleImport = lazy(() => import("@/app/(admin)/vehicles/vehicle-import").then(({ VehicleImport }) => ({ default: VehicleImport })));
 const LedgerImport = lazy(() => import("@/app/(admin)/import/ledger-import").then(({ LedgerImport }) => ({ default: LedgerImport })));
 const CompanySettingsPanel = lazy(() => import("@/components/system-settings-form").then(({ CompanySettingsPanel }) => ({ default: CompanySettingsPanel })));
@@ -45,6 +50,16 @@ export function DesktopPage({ pathname, search, timeZone, permissions }: {
       return <MonthlyReport key="drivers" view="drivers" initialMonth={monthInBusinessZone(timeZone)} />;
     case "/costs":
       return <MonthlyReport key="costs" view="costs" initialMonth={monthInBusinessZone(timeZone)} />;
+    case "/parts/new":
+      return <PartsEntry initialDate={todayInBusinessZone(timeZone)} />;
+    case "/parts/records":
+      return <PartsRecords initialMonth={monthInBusinessZone(timeZone)} today={todayInBusinessZone(timeZone)} timeZone={timeZone} />;
+    case "/parts-costs":
+      return <PartsCostReport initialMonth={monthInBusinessZone(timeZone)} />;
+    case "/vehicle-costs":
+      return <VehicleCostReport />;
+    case "/projects":
+      return <ProjectManager />;
     case "/vehicles":
       return <ArchiveManager key="vehicles" kind="vehicles" extraAction={<VehicleImport />} />;
     case "/drivers":

@@ -108,9 +108,9 @@ function MetricSparkline({ label, unit, monetary, digits, trend }: Pick<Metric, 
   );
 }
 
-export function MetricCards({ metrics }: { metrics: readonly Metric[] }) {
+export function MetricCards({ metrics, className }: { metrics: readonly Metric[]; className?: string }) {
   return (
-    <dl className={styles.metrics}>
+    <dl className={className ? `${styles.metrics} ${className}` : styles.metrics}>
       {metrics.map(({ label, value, unit, monetary, digits, comparison, detail, trend, tone = "blue" }) => (
         <div key={label} className={styles.metric} data-tone={tone}>
           <dt>{label}</dt>

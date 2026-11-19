@@ -68,6 +68,7 @@ export async function downloadSheet(
   filename: string,
   title: string,
   rows: (string | number | null)[][],
+  textColumns: readonly number[] = [],
 ) {
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
@@ -76,6 +77,7 @@ export async function downloadSheet(
   });
   sheet.addRows(rows);
   sheet.getRow(1).font = { bold: true };
+  for (const index of textColumns) sheet.getColumn(index).numFmt = "@";
   const columns = rows[0]?.length ?? 0;
   for (let index = 1; index <= columns; index++) {
     const sample = rows.slice(0, 25).map((row) => String(row[index - 1] ?? "").length);

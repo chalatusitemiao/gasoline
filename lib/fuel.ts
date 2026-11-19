@@ -54,9 +54,21 @@ export const fuelRecordUpdateSchema = fuelRecordInputSchema.extend({
     .refine((value) => !value.includes("\u0000"), "修改原因包含无效字符"),
 });
 
+const projectIdSchema = z.uuid("请选择有效项目").nullable().optional();
+const purchaseDateSchema = z.iso.date("请输入有效的购入日期")
+  .refine((value) => !value.startsWith("0000-"), "请输入有效的购入日期")
+  .nullable().optional();
+const purchasePriceSchema = z.union([z.string(), z.number()])
+  .transform((value) => String(value).trim())
+  .refine((value) => /^\d{1,16}(?:\.\d{1,2})?$/.test(value), "购入价格必须为非负金额，最多两位小数")
+  .nullable().optional();
+
 export const vehicleInputSchema = z.object({
   plate: plateSchema,
   fuelType: fuelTypeSchema,
+  projectId: projectIdSchema,
+  purchaseDate: purchaseDateSchema,
+  purchasePrice: purchasePriceSchema,
   notes: notesSchema,
 });
 
@@ -65,6 +77,7 @@ export const driverInputSchema = z.object({
     .refine((value) => !value.includes("\u0000"), "姓名包含无效字符"),
   phone: z.string().trim().max(32, "手机号码最多 32 字").regex(/^[+\d\s()-]*$/, "请输入有效手机号码").default(""),
   isActive: z.boolean(),
+  projectId: projectIdSchema,
   notes: notesSchema,
 });
 
@@ -81,6 +94,12 @@ export type Vehicle = {
   refuelCount?: number;
   lastDate?: string | null;
   lastOdometer?: string | null;
+  hasPartRecords?: boolean;
+  projectId?: string | null;
+  projectName?: string | null;
+  projectIsActive?: boolean | null;
+  purchaseDate?: string | null;
+  purchasePrice?: string | null;
 };
 
 export type Driver = {
@@ -92,6 +111,9 @@ export type Driver = {
   createdAt: string;
   updatedAt: string;
   refuelCount?: number;
+  projectId?: string | null;
+  projectName?: string | null;
+  projectIsActive?: boolean | null;
 };
 
 export type FuelOptions = { vehicles: Vehicle[]; drivers: Driver[] };

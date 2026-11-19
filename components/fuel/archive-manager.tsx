@@ -1,14 +1,15 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { ModalForm, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, ProTable, type ProColumns } from "@ant-design/pro-components";
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, ProFormTextArea, ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Form, Input, Space, Tag, Tooltip } from "antd";
 import { useState, type ReactNode } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
+import type { FleetProjectOption } from "@/lib/fleet-project";
 import { driverInputSchema, FUEL_PAGE_SIZE, vehicleInputSchema, type Driver, type FuelPage as PageData, type FuelType, type Vehicle } from "@/lib/fuel";
-import { FUEL_OPTIONS, FuelPage, fuelText, numberText, QueryError, tablePagination } from "./ui";
+import { FUEL_OPTIONS, FuelPage, fuelText, moneyText, numberText, QueryError, tablePagination } from "./ui";
 import styles from "./ui.module.css";
 
 type ArchiveRow = Vehicle | Driver;
@@ -18,12 +19,26 @@ type Fields = {
   name?: string;
   phone?: string;
   isActive?: boolean;
+  projectId?: string | null;
+  purchaseDate?: string | null;
+  purchasePrice?: string | number | null;
   notes?: string;
+};
+
+const projectColumn: ProColumns<ArchiveRow> = {
+  title: "项目",
+  dataIndex: "projectName",
+  width: 170,
+  ellipsis: true,
+  renderText: (value: string | null | undefined, row) =>
+    value ? row.projectIsActive === false ? `${value}（停用）` : value : "—",
 };
 
 const vehicleColumns: ProColumns<ArchiveRow>[] = [
   { title: "车牌", dataIndex: "plate", width: 135 },
+  projectColumn,
   { title: "常用油品", dataIndex: "fuelType", width: 110, renderText: fuelText },
+  { title: "购入日期", dataIndex: "purchaseDate", width: 125, renderText: (value: string | null | undefined) => value || "—" },
   { title: "加油次数", dataIndex: "refuelCount", width: 115, align: "right" },
   { title: "上次加油日期", dataIndex: "lastDate", width: 140 },
   { title: "上次里程（km）", dataIndex: "lastOdometer", width: 145, align: "right", renderText: (value: string | null) => numberText(value) },
@@ -32,6 +47,7 @@ const vehicleColumns: ProColumns<ArchiveRow>[] = [
 
 const driverColumns: ProColumns<ArchiveRow>[] = [
   { title: "司机", dataIndex: "name", width: 205, ellipsis: true },
+  projectColumn,
   { title: "手机号", dataIndex: "phone", width: 155 },
   {
     title: "状态",
@@ -49,10 +65,19 @@ function displayName(row: ArchiveRow) {
   return "plate" in row ? row.plate : row.name;
 }
 
-function editValues(vehicle: boolean, row?: ArchiveRow): Fields {
+function editValues(vehicle: boolean, canViewPurchasePrice: boolean, row?: ArchiveRow): Fields {
   if (!row) return vehicle ? {} : { isActive: true };
-  if ("plate" in row) return { plate: row.plate, fuelType: row.fuelType, notes: row.notes ?? "" };
-  return { name: row.name, phone: row.phone ?? "", isActive: row.isActive, notes: row.notes ?? "" };
+  const common = { projectId: row.projectId ?? undefined, notes: row.notes ?? "" };
+  if ("plate" in row) {
+    return {
+      ...common,
+      plate: row.plate,
+      fuelType: row.fuelType,
+      purchaseDate: row.purchaseDate ?? undefined,
+      ...(canViewPurchasePrice ? { purchasePrice: row.purchasePrice ?? undefined } : {}),
+    };
+  }
+  return { ...common, name: row.name, phone: row.phone ?? "", isActive: row.isActive };
 }
 
 export function ArchiveManager({
@@ -65,9 +90,10 @@ export function ArchiveManager({
   const vehicle = kind === "vehicles";
   const label = vehicle ? "车辆" : "司机";
   const { message, modal } = App.useApp();
-  const { permissions = [] } = useAppNavigation();
+  const { companyId, permissions = [] } = useAppNavigation();
   const canManage = permissions.includes("archives:manage");
   const canImport = permissions.includes("archives:import");
+  const canViewPurchasePrice = permissions.includes("archives:purchase-price");
   const queryClient = useQueryClient();
   const [form] = Form.useForm<Fields>();
   const [pagination, setPagination] = useState({ page: 1, pageSize: FUEL_PAGE_SIZE });
@@ -76,7 +102,7 @@ export function ArchiveManager({
   const endpoint = `/api/fuel/${kind}`;
 
   const list = useQuery({
-    queryKey: ["fuel", kind, keyword, pagination] as const,
+    queryKey: ["fuel", kind, keyword, pagination, companyId, canViewPurchasePrice] as const,
     queryFn: ({ signal }) => {
       const params = new URLSearchParams({
         page: String(pagination.page),
@@ -86,9 +112,15 @@ export function ArchiveManager({
       return apiFetch<PageData<ArchiveRow>>(`${endpoint}?${params}`, { signal });
     },
     placeholderData: (previous, query) =>
-      query?.queryKey[2] === keyword && query.queryKey[3].pageSize === pagination.pageSize
+      query?.queryKey[2] === keyword && query.queryKey[3].pageSize === pagination.pageSize &&
+      query.queryKey[4] === companyId && query.queryKey[5] === canViewPurchasePrice
         ? previous
         : undefined,
+  });
+  const projects = useQuery({
+    queryKey: ["fuel", "projects", "options"],
+    queryFn: ({ signal }) => apiFetch<FleetProjectOption[]>("/api/fuel/projects/options", { signal }),
+    enabled: canManage && Boolean(editor),
   });
   const save = useMutation({
     mutationFn: (values: Fields) => apiFetch(
@@ -98,7 +130,12 @@ export function ArchiveManager({
   });
 
   async function submit(values: Fields) {
-    const result = (vehicle ? vehicleInputSchema : driverInputSchema).safeParse(values);
+    const result = (vehicle ? vehicleInputSchema : driverInputSchema).safeParse({
+      ...values,
+      projectId: values.projectId ?? null,
+      ...(vehicle ? { purchaseDate: values.purchaseDate || null } : {}),
+      ...(vehicle && canViewPurchasePrice ? { purchasePrice: values.purchasePrice ?? null } : {}),
+    });
     if (!result.success) {
       form.setFields(result.error.issues.map((issue) => ({
         name: issue.path[0] as keyof Fields,
@@ -109,6 +146,7 @@ export function ArchiveManager({
     try {
       await save.mutateAsync(result.data);
       void queryClient.invalidateQueries({ queryKey: ["fuel"] });
+      void queryClient.invalidateQueries({ queryKey: ["parts"] });
       if (!editor?.row) setPagination((previous) => ({ ...previous, page: 1 }));
       message.success(`${label}已保存。`);
       return true;
@@ -131,6 +169,7 @@ export function ArchiveManager({
             setPagination((previous) => ({ ...previous, page: previous.page - 1 }));
           }
           void queryClient.invalidateQueries({ queryKey: ["fuel"] });
+          void queryClient.invalidateQueries({ queryKey: ["parts"] });
           message.success(`${label}已删除。`);
         } catch (error) {
           message.error(error instanceof Error ? error.message : "删除失败。");
@@ -140,19 +179,38 @@ export function ArchiveManager({
     });
   }
 
+  const currentProject = editor?.row;
+  const projectOptions = (projects.data ?? [])
+    .filter((project) => project.isActive || project.id === currentProject?.projectId)
+    .map((project) => ({ value: project.id, label: project.isActive ? project.name : `${project.name}（停用）` }));
+  if (currentProject?.projectId && currentProject.projectName && !projectOptions.some(({ value }) => value === currentProject.projectId)) {
+    projectOptions.push({
+      value: currentProject.projectId,
+      label: currentProject.projectIsActive === false ? `${currentProject.projectName}（停用）` : currentProject.projectName,
+    });
+  }
+
   const columns: ProColumns<ArchiveRow>[] = [
-    ...(vehicle ? vehicleColumns : driverColumns),
+    ...(vehicle && canViewPurchasePrice
+      ? [
+          ...vehicleColumns.slice(0, 4),
+          { title: "购入价格（元）", dataIndex: "purchasePrice", width: 145, align: "right" as const, renderText: moneyText },
+          ...vehicleColumns.slice(4),
+        ]
+      : vehicle ? vehicleColumns : driverColumns),
     ...(canManage ? [{
       title: "操作",
       width: 115,
       render: (_: unknown, row: ArchiveRow) => {
-        const linked = (row.refuelCount ?? 0) > 0;
+        const linkedReason = (row.refuelCount ?? 0) > 0
+          ? "已有加油记录，无法删除"
+          : "hasPartRecords" in row && row.hasPartRecords ? "已有配件历史，无法删除" : undefined;
         return (
           <Space size={0}>
             <Button size="small" type="link" onClick={() => setEditor({ row })}>修改</Button>
-            <Tooltip title={linked ? "已有加油记录，无法删除" : undefined}>
+            <Tooltip title={linkedReason}>
               <span>
-                <Button size="small" type="link" danger disabled={linked} onClick={() => remove(row)}>删除</Button>
+                <Button size="small" type="link" danger disabled={Boolean(linkedReason)} onClick={() => remove(row)}>删除</Button>
               </span>
             </Tooltip>
           </Space>
@@ -177,7 +235,7 @@ export function ArchiveManager({
         loading={list.isFetching && (!list.data || list.isPlaceholderData)}
         search={false}
         options={false}
-        scroll={{ x: vehicle ? 870 : 800 }}
+        scroll={{ x: vehicle ? (canViewPurchasePrice ? 1320 : 1180) : 970 }}
         pagination={tablePagination(pagination, list.data?.total ?? 0, setPagination)}
         locale={{ emptyText: `暂无${label}记录` }}
         headerTitle={
@@ -201,7 +259,7 @@ export function ArchiveManager({
         open={Boolean(editor)}
         width={480}
         title={editor?.row ? `修改${label}` : `新增${label}`}
-        initialValues={editValues(vehicle, editor?.row)}
+        initialValues={editValues(vehicle, canViewPurchasePrice, editor?.row)}
         clearOnDestroy
         onOpenChange={(open) => {
           if (!open) {
@@ -234,6 +292,20 @@ export function ArchiveManager({
             <ProFormSwitch name="isActive" label="状态" fieldProps={{ checkedChildren: "在用", unCheckedChildren: "停用" }} />
           </>
         )}
+        {projects.error && <QueryError error={projects.error} retry={() => { void projects.refetch(); }} />}
+        <ProFormSelect
+          name="projectId"
+          label="项目"
+          placeholder="选择项目"
+          options={projectOptions}
+          fieldProps={{ allowClear: true, showSearch: true, optionFilterProp: "label", loading: projects.isFetching }}
+        />
+        {vehicle && <ProFormText name="purchaseDate" label="购入日期" fieldProps={{ type: "date" }} />}
+        {vehicle && canViewPurchasePrice && <ProFormDigit
+          name="purchasePrice"
+          label="购入价格（元）"
+          fieldProps={{ min: 0, precision: 2, stringMode: true, controls: false, placeholder: "输入购入价格" }}
+        />}
         <ProFormTextArea name="notes" label="备注" fieldProps={{ maxLength: 500, autoSize: { minRows: 2, maxRows: 5 } }} />
       </ModalForm>
     </FuelPage>

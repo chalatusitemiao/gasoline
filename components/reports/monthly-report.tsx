@@ -20,9 +20,9 @@ import styles from "./reports.module.css";
 type ReportView = Exclude<AnalyticsView, "dashboard">;
 
 const titles: Record<ReportView, string> = {
-  vehicles: "单车月报",
+  vehicles: "单车加油月报",
   drivers: "司机考核",
-  costs: "成本表",
+  costs: "加油成本表",
 };
 
 function VehicleTrend({ report, months }: { report: FuelAnalytics; months: readonly string[] }) {

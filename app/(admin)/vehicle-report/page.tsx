@@ -4,7 +4,7 @@ import { requirePageSession } from "@/lib/auth";
 import { monthInBusinessZone } from "@/lib/fuel-calendar";
 import { getCompanyBusinessSettings } from "@/lib/company-settings";
 
-export const metadata: Metadata = { title: "单车月报" };
+export const metadata: Metadata = { title: "单车加油月报" };
 
 export default async function VehicleReportPage() {
   const session = await requirePageSession("reports:view");

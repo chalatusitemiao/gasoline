@@ -64,6 +64,13 @@
       "when": 1795072102530,
       "tag": "0008_company_expiry_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795078831913,
+      "tag": "0009_fleet_projects_and_parts",
+      "breakpoints": true
     }
   ]
 }

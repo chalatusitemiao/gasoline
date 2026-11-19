@@ -4,6 +4,7 @@ import type { UserRole } from "../permissions";
 import { companies } from "./company-schema";
 
 export * from "./fuel-schema";
+export * from "./parts-schema";
 export * from "./auth-guard-schema";
 export * from "./company-schema";
 

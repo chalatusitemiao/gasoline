@@ -13,11 +13,17 @@ export const permissions = [
   "records:import",
   "records:export",
   "records:deletions:view",
+  "parts:view",
+  "parts:create",
+  "parts:edit",
+  "parts:delete",
   "reports:view",
   "reports:export",
+  "reports:vehicle-costs",
   "archives:view",
   "archives:manage",
   "archives:import",
+  "archives:purchase-price",
   "settings:manage",
   "users:manage",
   "docs:view",
@@ -36,6 +42,9 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
     "records:view",
     "records:create",
     "records:edit",
+    "parts:view",
+    "parts:create",
+    "parts:edit",
     "reports:view",
     "archives:view",
     "docs:view",
@@ -43,6 +52,7 @@ const rolePermissions: Record<UserRole, readonly Permission[]> = {
   viewer: [
     "dashboard:view",
     "records:view",
+    "parts:view",
     "reports:view",
     "archives:view",
     "docs:view",
@@ -72,10 +82,13 @@ export function pagePermission(pathname: string, granted: readonly string[] = []
   if (pathname === "/refuel") return "records:create";
   if (pathname === "/records" || pathname.startsWith("/records/")) return "records:view";
   if (pathname === "/import") return "records:import";
-  if (pathname === "/vehicle-report" || pathname === "/driver-report" || pathname === "/costs") {
+  if (pathname === "/parts/new") return "parts:create";
+  if (pathname === "/parts/records") return "parts:view";
+  if (pathname === "/vehicle-costs") return "reports:vehicle-costs";
+  if (pathname === "/vehicle-report" || pathname === "/driver-report" || pathname === "/costs" || pathname === "/parts-costs") {
     return "reports:view";
   }
-  if (pathname === "/vehicles" || pathname === "/drivers") return "archives:view";
+  if (pathname === "/vehicles" || pathname === "/drivers" || pathname === "/projects") return "archives:view";
   if (pathname === "/settings") return "settings:manage";
   if (pathname === "/users") return "users:manage";
   if (pathname === "/companies") return "companies:manage";

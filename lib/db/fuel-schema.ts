@@ -1,8 +1,24 @@
+import { sql } from "drizzle-orm";
 import {
-  bigserial, boolean, date, foreignKey, index, jsonb, numeric, pgTable, text, timestamp, unique, uuid,
+  bigserial, boolean, check, date, foreignKey, index, jsonb, numeric, pgTable, text, timestamp, unique, uuid,
 } from "drizzle-orm/pg-core";
 import type { FuelAnomaly, FuelAnomalyAssessment, FuelDeletionSnapshot, FuelFieldChange, FuelRecord, FuelType } from "../fuel";
 import { companies } from "./company-schema";
+
+export const fleetProjects = pgTable("fleet_projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: uuid("company_id").notNull().references(() => companies.id),
+  name: text("name").notNull(),
+  nameKey: text("name_key").notNull(),
+  manager: text("manager").default("").notNull(),
+  phone: text("phone").default("").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  unique("fleet_projects_company_name_unique").on(table.companyId, table.nameKey),
+  unique("fleet_projects_company_id_unique").on(table.companyId, table.id),
+]);
 
 export const vehicles = pgTable("vehicles", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -10,12 +26,18 @@ export const vehicles = pgTable("vehicles", {
   plate: text("plate").notNull(),
   plateKey: text("plate_key").notNull(),
   fuelType: text("fuel_type").$type<FuelType>().notNull(),
+  projectId: uuid("project_id"),
+  purchaseDate: date("purchase_date", { mode: "string" }),
+  purchasePrice: numeric("purchase_price", { precision: 18, scale: 2 }),
   notes: text("notes").default("").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   unique("vehicles_company_plate_unique").on(table.companyId, table.plateKey),
   unique("vehicles_company_id_unique").on(table.companyId, table.id),
+  foreignKey({ name: "vehicles_company_project_fk", columns: [table.companyId, table.projectId], foreignColumns: [fleetProjects.companyId, fleetProjects.id] }),
+  index("vehicles_company_project_idx").on(table.companyId, table.projectId),
+  check("vehicles_purchase_price_check", sql`${table.purchasePrice} >= 0`),
 ]);
 
 export const drivers = pgTable("drivers", {
@@ -25,12 +47,15 @@ export const drivers = pgTable("drivers", {
   nameKey: text("name_key").notNull(),
   phone: text("phone").default("").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  projectId: uuid("project_id"),
   notes: text("notes").default("").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index("drivers_company_name_key_idx").on(table.companyId, table.nameKey),
   unique("drivers_company_id_unique").on(table.companyId, table.id),
+  foreignKey({ name: "drivers_company_project_fk", columns: [table.companyId, table.projectId], foreignColumns: [fleetProjects.companyId, fleetProjects.id] }),
+  index("drivers_company_project_idx").on(table.companyId, table.projectId),
 ]);
 
 export const fuelRecords = pgTable("fuel_records", {

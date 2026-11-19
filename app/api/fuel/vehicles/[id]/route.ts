@@ -6,11 +6,15 @@ import { apiRoute } from "@/lib/server-api";
 type Context = { params: Promise<{ id: string }> };
 
 export function GET(request: Request, { params }: Context) {
-  return apiRoute(request, async () => getVehicle(uuid((await params).id)), { permission: "archives:view" });
+  return apiRoute(request, async (actor) => getVehicle(
+    uuid((await params).id), actor.permissions.includes("archives:purchase-price"),
+  ), { permission: "archives:view" });
 }
 
 export function PUT(request: Request, { params }: Context) {
-  return apiRoute(request, async () => saveVehicle(await body(request, vehicleInputSchema), uuid((await params).id)), {
+  return apiRoute(request, async (actor) => saveVehicle(
+    await body(request, vehicleInputSchema), uuid((await params).id), actor.permissions.includes("archives:purchase-price"),
+  ), {
     permission: "archives:manage",
   });
 }

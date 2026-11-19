@@ -1,0 +1,22 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.selector {
+  width: min(230px, 72vw);
+}
+
+.month {
+  width: 140px;
+}
+
+.costReport > .metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.money {
+  font-variant-numeric: tabular-nums;
+}

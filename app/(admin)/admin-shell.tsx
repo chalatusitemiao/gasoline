@@ -15,8 +15,10 @@ import {
   LogoutOutlined,
   OrderedListOutlined,
   ProfileOutlined,
+  ProjectOutlined,
   SettingOutlined,
   TeamOutlined,
+  ToolOutlined,
   UnorderedListOutlined,
   UserOutlined,
   WalletOutlined,
@@ -51,13 +53,24 @@ const navigation: NavigationItem[] = [
     ],
   },
   {
+    path: "/parts",
+    name: "车辆配件",
+    icon: <ToolOutlined />,
+    children: [
+      { path: "/parts/new", name: "配件录入", icon: <FormOutlined /> },
+      { path: "/parts/records", name: "配件记录", icon: <UnorderedListOutlined /> },
+    ],
+  },
+  {
     path: "/reports",
     name: "经营报表",
     icon: <BarChartOutlined />,
     children: [
-      { path: "/vehicle-report", name: "单车月报", icon: <LineChartOutlined /> },
+      { path: "/vehicle-report", name: "单车加油月报", icon: <LineChartOutlined /> },
       { path: "/driver-report", name: "司机考核", icon: <OrderedListOutlined /> },
-      { path: "/costs", name: "成本表", icon: <WalletOutlined /> },
+      { path: "/costs", name: "加油成本表", icon: <WalletOutlined /> },
+      { path: "/parts-costs", name: "配件成本", icon: <BarChartOutlined /> },
+      { path: "/vehicle-costs", name: "车辆成本", icon: <WalletOutlined /> },
     ],
   },
   {
@@ -65,6 +78,7 @@ const navigation: NavigationItem[] = [
     name: "基础档案",
     icon: <FolderOpenOutlined />,
     children: [
+      { path: "/projects", name: "项目档案", icon: <ProjectOutlined /> },
       { path: "/vehicles", name: "车辆档案", icon: <CarOutlined /> },
       { path: "/drivers", name: "司机档案", icon: <TeamOutlined /> },
     ],

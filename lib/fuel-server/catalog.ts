@@ -4,13 +4,15 @@ import { and, asc, count, eq, getTableName, ilike, inArray, or, sql } from "driz
 import { z } from "zod";
 import { requireCompanyId } from "@/lib/company-context";
 import { getDb } from "@/lib/db";
-import { drivers, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
+import { drivers, fleetProjects, fuelRecords, vehicles } from "@/lib/db/fuel-schema";
+import { partRecords } from "@/lib/db/parts-schema";
 import {
   driverInputSchema, FUEL_IMPORT_LIMIT, fuelTypeSchema, plateKey, vehicleInputSchema,
   type Driver, type FuelOptions, type FuelPage, type Vehicle,
 } from "@/lib/fuel";
 import { ApiError } from "@/lib/server-api";
-import { keywordSchema, pageSchema, parse, readFuel, searchPattern, writeFuel } from "./shared";
+import { requireAssignableProject } from "./projects";
+import { keywordSchema, pageSchema, parse, readFuel, searchPattern, writeFuel, type FuelReadDb } from "./shared";
 
 export function driverNameKey(name: string) {
   return name.trim().normalize("NFKC").toLowerCase().replace(/\s+/g, " ");
@@ -28,6 +30,7 @@ const vehicleFields = {
   id: vehicles.id,
   plate: vehicles.plate,
   fuelType: vehicles.fuelType,
+  projectId: vehicles.projectId,
   notes: vehicles.notes,
   createdAt: vehicles.createdAt,
   updatedAt: vehicles.updatedAt,
@@ -37,10 +40,26 @@ const driverFields = {
   name: drivers.name,
   phone: drivers.phone,
   isActive: drivers.isActive,
+  projectId: drivers.projectId,
   notes: drivers.notes,
   createdAt: drivers.createdAt,
   updatedAt: drivers.updatedAt,
 };
+const projectFields = {
+  projectName: fleetProjects.name,
+  projectIsActive: fleetProjects.isActive,
+};
+const vehicleProject = and(eq(fleetProjects.companyId, vehicles.companyId), eq(fleetProjects.id, vehicles.projectId));
+const driverProject = and(eq(fleetProjects.companyId, drivers.companyId), eq(fleetProjects.id, drivers.projectId));
+
+function vehicleArchiveFields(includePurchasePrice: boolean) {
+  return {
+    ...vehicleFields,
+    ...projectFields,
+    purchaseDate: vehicles.purchaseDate,
+    ...(includePurchasePrice ? { purchasePrice: vehicles.purchasePrice } : {}),
+  };
+}
 
 const catalogFilter = pageSchema.extend({ keyword: keywordSchema });
 const driverFilter = catalogFilter.extend({
@@ -50,12 +69,11 @@ const vehicleFilter = catalogFilter.extend({
   fuelType: fuelTypeSchema.optional(),
 });
 
-// Drizzle unqualifies top-level selected columns in a single-table query.
-// Preserve the outer references inside the correlated statistics subqueries.
+// Keep the correlated references qualified by their outer archive table.
 const outerVehicleId = sql`${sql.identifier(getTableName(vehicles))}.${sql.identifier(vehicles.id.name)}`;
 const outerDriverId = sql`${sql.identifier(getTableName(drivers))}.${sql.identifier(drivers.id.name)}`;
 
-export async function listVehicles(query: unknown): Promise<FuelPage<Vehicle>> {
+export async function listVehicles(query: unknown, includePurchasePrice = false): Promise<FuelPage<Vehicle>> {
   const companyId = await requireCompanyId();
   const { keyword, fuelType, page, pageSize } = parse(vehicleFilter, query);
   const search = plateKey(keyword);
@@ -71,7 +89,7 @@ export async function listVehicles(query: unknown): Promise<FuelPage<Vehicle>> {
   return readFuel(async (db) => {
     const [summary] = await db.select({ total: count() }).from(vehicles).where(where);
     const rows = await db.select({
-      ...vehicleFields,
+      ...vehicleArchiveFields(includePurchasePrice),
       refuelCount: sql<number>`(select count(*)::integer from ${fuelRecords}
         where ${fuelRecords.vehicleId} = ${outerVehicleId} and ${fuelRecords.companyId} = ${companyId})`,
       lastDate: sql<string | null>`(select ${fuelRecords.date}::text from ${fuelRecords}
@@ -80,7 +98,9 @@ export async function listVehicles(query: unknown): Promise<FuelPage<Vehicle>> {
       lastOdometer: sql<string | null>`(select ${fuelRecords.odometer}::text from ${fuelRecords}
         where ${fuelRecords.vehicleId} = ${outerVehicleId} and ${fuelRecords.companyId} = ${companyId}
         order by ${fuelRecords.date} desc, ${fuelRecords.sequence} desc limit 1)`,
-    }).from(vehicles).where(where).orderBy(asc(vehicles.plateKey), asc(vehicles.id))
+      hasPartRecords: sql<boolean>`exists (select 1 from ${partRecords}
+        where ${partRecords.vehicleId} = ${outerVehicleId} and ${partRecords.companyId} = ${companyId})`,
+    }).from(vehicles).leftJoin(fleetProjects, vehicleProject).where(where).orderBy(asc(vehicles.plateKey), asc(vehicles.id))
       .limit(pageSize).offset((page - 1) * pageSize);
     return { items: rows.map(dates), total: summary.total, page, pageSize };
   });
@@ -105,9 +125,10 @@ export async function listDrivers(query: unknown): Promise<FuelPage<Driver>> {
     const [summary] = await db.select({ total: count() }).from(drivers).where(where);
     const rows = await db.select({
       ...driverFields,
+      ...projectFields,
       refuelCount: sql<number>`(select count(*)::integer from ${fuelRecords}
         where ${fuelRecords.driverId} = ${outerDriverId} and ${fuelRecords.companyId} = ${companyId})`,
-    }).from(drivers).where(where).orderBy(asc(drivers.nameKey), asc(drivers.id))
+    }).from(drivers).leftJoin(fleetProjects, driverProject).where(where).orderBy(asc(drivers.nameKey), asc(drivers.id))
       .limit(pageSize).offset((page - 1) * pageSize);
     return { items: rows.map(dates), total: summary.total, page, pageSize };
   });
@@ -116,40 +137,56 @@ export async function listDrivers(query: unknown): Promise<FuelPage<Driver>> {
 export async function getFuelOptions(): Promise<FuelOptions> {
   const companyId = await requireCompanyId();
   return readFuel(async (db) => {
-    const vehicleRows = await db.select(vehicleFields).from(vehicles)
+    const vehicleRows = await db.select({ ...vehicleFields, ...projectFields }).from(vehicles)
+      .leftJoin(fleetProjects, vehicleProject)
       .where(eq(vehicles.companyId, companyId)).orderBy(asc(vehicles.plateKey));
-    const driverRows = await db.select(driverFields).from(drivers)
+    const driverRows = await db.select({ ...driverFields, ...projectFields }).from(drivers)
+      .leftJoin(fleetProjects, driverProject)
       .where(eq(drivers.companyId, companyId)).orderBy(asc(drivers.nameKey), asc(drivers.id));
     return { vehicles: vehicleRows.map(dates), drivers: driverRows.map(dates) };
   });
 }
 
-export async function getVehicle(id: string): Promise<Vehicle> {
-  const companyId = await requireCompanyId();
-  const db = await getDb();
-  const [row] = await db.select(vehicleFields).from(vehicles)
+async function readVehicle(db: FuelReadDb, companyId: string, id: string, includePurchasePrice: boolean): Promise<Vehicle> {
+  const [row] = await db.select(vehicleArchiveFields(includePurchasePrice)).from(vehicles)
+    .leftJoin(fleetProjects, vehicleProject)
     .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, id))).limit(1);
   if (!row) throw new ApiError(404, "车辆不存在");
   return dates(row);
 }
 
-export async function getDriver(id: string): Promise<Driver> {
+export async function getVehicle(id: string, includePurchasePrice = false): Promise<Vehicle> {
   const companyId = await requireCompanyId();
-  const db = await getDb();
-  const [row] = await db.select(driverFields).from(drivers)
+  return readVehicle(await getDb(), companyId, id, includePurchasePrice);
+}
+
+async function readDriver(db: FuelReadDb, companyId: string, id: string): Promise<Driver> {
+  const [row] = await db.select({ ...driverFields, ...projectFields }).from(drivers)
+    .leftJoin(fleetProjects, driverProject)
     .where(and(eq(drivers.companyId, companyId), eq(drivers.id, id))).limit(1);
   if (!row) throw new ApiError(404, "司机不存在");
   return dates(row);
 }
 
-export async function saveVehicle(input: z.output<typeof vehicleInputSchema>, id?: string) {
+export async function getDriver(id: string): Promise<Driver> {
   const companyId = await requireCompanyId();
+  return readDriver(await getDb(), companyId, id);
+}
+
+export async function saveVehicle(input: z.output<typeof vehicleInputSchema>, id?: string, includePurchasePrice = false) {
+  const companyId = await requireCompanyId();
+  if (!includePurchasePrice && input.purchasePrice !== undefined) {
+    throw new ApiError(403, "当前账号无权设置车辆购入价格");
+  }
   return writeFuel(async (db) => {
+    let currentProjectId: string | null = null;
     if (id) {
-      const [current] = await db.select({ id: vehicles.id }).from(vehicles)
+      const [current] = await db.select({ projectId: vehicles.projectId }).from(vehicles)
         .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, id))).limit(1);
       if (!current) throw new ApiError(404, "车辆不存在");
+      currentProjectId = current.projectId;
     }
+    await requireAssignableProject(db, companyId, input.projectId, currentProjectId);
     const key = plateKey(input.plate);
     const [existing] = await db.select({ id: vehicles.id }).from(vehicles)
       .where(and(eq(vehicles.companyId, companyId), eq(vehicles.plateKey, key))).limit(1);
@@ -158,24 +195,32 @@ export async function saveVehicle(input: z.output<typeof vehicleInputSchema>, id
     const values = { ...input, companyId, plate: displayPlate(input.plate), plateKey: key };
     const [saved] = id
       ? await db.update(vehicles).set({ ...values, updatedAt: new Date() })
-        .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, id))).returning(vehicleFields)
-      : await db.insert(vehicles).values(values).returning(vehicleFields);
+        .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, id))).returning({ id: vehicles.id })
+      : await db.insert(vehicles).values(values).returning({ id: vehicles.id });
     if (!saved) throw new ApiError(404, "车辆不存在");
-    return dates(saved);
+    return readVehicle(db, companyId, saved.id, includePurchasePrice);
   });
 }
 
 export async function saveDriver(input: z.output<typeof driverInputSchema>, id?: string) {
   const companyId = await requireCompanyId();
   return writeFuel(async (db) => {
+    let currentProjectId: string | null = null;
+    if (id) {
+      const [current] = await db.select({ projectId: drivers.projectId }).from(drivers)
+        .where(and(eq(drivers.companyId, companyId), eq(drivers.id, id))).limit(1);
+      if (!current) throw new ApiError(404, "司机不存在");
+      currentProjectId = current.projectId;
+    }
+    await requireAssignableProject(db, companyId, input.projectId, currentProjectId);
     const nameKey = driverNameKey(input.name);
     const values = { ...input, companyId, nameKey };
     const [saved] = id
       ? await db.update(drivers).set({ ...values, updatedAt: new Date() })
-        .where(and(eq(drivers.companyId, companyId), eq(drivers.id, id))).returning(driverFields)
-      : await db.insert(drivers).values(values).returning(driverFields);
+        .where(and(eq(drivers.companyId, companyId), eq(drivers.id, id))).returning({ id: drivers.id })
+      : await db.insert(drivers).values(values).returning({ id: drivers.id });
     if (!saved) throw new ApiError(404, "司机不存在");
-    return dates(saved);
+    return readDriver(db, companyId, saved.id);
   });
 }
 
@@ -185,6 +230,9 @@ export async function deleteVehicle(id: string) {
     const [linked] = await db.select({ id: fuelRecords.id }).from(fuelRecords)
       .where(and(eq(fuelRecords.companyId, companyId), eq(fuelRecords.vehicleId, id))).limit(1);
     if (linked) throw new ApiError(409, "该车辆有关联加油记录，无法删除");
+    const [linkedPart] = await db.select({ id: partRecords.id }).from(partRecords)
+      .where(and(eq(partRecords.companyId, companyId), eq(partRecords.vehicleId, id))).limit(1);
+    if (linkedPart) throw new ApiError(409, "该车辆有关联配件历史，无法删除");
     const [removed] = await db.delete(vehicles)
       .where(and(eq(vehicles.companyId, companyId), eq(vehicles.id, id))).returning({ id: vehicles.id });
     if (!removed) throw new ApiError(404, "车辆不存在");

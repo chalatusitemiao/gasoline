@@ -1,4 +1,6 @@
 import { FUEL_IMPORT_LIMIT, FUEL_PAGE_SIZE } from "./fuel";
+import { PART_PHOTO_LIMIT, PART_PHOTO_MAX_BYTES, PART_PROJECT_UNASSIGNED, partPhotoMimeTypes } from "./parts";
+import { permissions } from "./permissions";
 
 const string = { type: "string" };
 const integer = { type: "integer" };
@@ -8,6 +10,9 @@ const uuid = { type: "string", format: "uuid" };
 const decimal = { type: "string", description: "十进制数字字符串" };
 const decimalInput = { oneOf: [decimal, { type: "number" }] };
 const nullableDecimal = { type: ["string", "null"] };
+const nullableString = { type: ["string", "null"] };
+const nullableUuid = { ...nullableString, format: "uuid" };
+const nullableDate = { ...nullableString, format: "date" };
 const fuelType = { type: "string", enum: ["diesel", "gasoline"] };
 const number = { type: "number" };
 const nullableNumber = { type: ["number", "null"] };
@@ -74,13 +79,41 @@ const companyUserRole = { type: "string", enum: ["admin", "operator", "viewer"] 
 const userRole = { type: "string", enum: ["super_admin", ...companyUserRole.enum] };
 const permission = {
   type: "string",
-  enum: [
-    "dashboard:view", "records:view", "records:create", "records:edit", "records:edit:any",
-    "records:delete", "records:import", "records:export", "records:deletions:view",
-    "reports:view", "reports:export", "archives:view", "archives:manage", "archives:import",
-    "settings:manage", "users:manage", "docs:view",
-    "companies:manage", "platform:view", "platform:settings",
-  ],
+  enum: permissions,
+};
+const projectInput = {
+  name: { ...string, minLength: 1, maxLength: 120 }, manager: { ...string, maxLength: 80 },
+  phone: { ...string, maxLength: 40 }, isActive: boolean,
+};
+const projectSelectionFields = { projectId: nullableUuid, projectName: nullableString, projectIsActive: { type: ["boolean", "null"] } };
+const projectFilter = { oneOf: [uuid, { ...string, const: PART_PROJECT_UNASSIGNED }], description: "项目编号，或 unassigned 查询未分配项目。" };
+const partFilterParams = [...pageParams, query("vehicleId", uuid), query("month", month), query("projectId", projectFilter)];
+const partPhotoMimeType = { ...string, enum: partPhotoMimeTypes };
+const partPhotoData = { ...string, contentEncoding: "base64", maxLength: Math.ceil(PART_PHOTO_MAX_BYTES / 3) * 4 };
+const partPhoto = { id: uuid, mimeType: partPhotoMimeType };
+const partInput = {
+  vehicleId: uuid,
+  projectId: { ...nullableUuid, description: "新增时省略默认使用车辆当前项目，修改时省略保留原项目。传入 null 表示未分配，可指定历史项目。" },
+  date: { ...date, description: "实际购买日期，不能晚于公司业务时区的今天。" },
+  name: { ...string, minLength: 1, maxLength: 100 },
+  quantity: { ...decimalInput, description: "数量大于 0，最多 7 位整数及 3 位小数。" },
+  unitPrice: { ...decimalInput, description: "非负人民币单价，最多 9 位整数及 2 位小数。" },
+  purchaseArea: { ...string, maxLength: 100 },
+  photos: {
+    ...array({ oneOf: [
+      object({ id: uuid }, ["id"]),
+      object({ mimeType: partPhotoMimeType, data: partPhotoData }, ["mimeType", "data"]),
+    ] }), maxItems: PART_PHOTO_LIMIT,
+    description: "单张最多 1 MiB。新增时提交图片数据；修改时 id 用于保留已有照片，省略 photos 保留现有照片，传入空数组移除全部照片。",
+  },
+};
+const partRequired = ["vehicleId", "date", "name", "quantity", "unitPrice"];
+const partReason = { ...string, minLength: 1, maxLength: 500 };
+const partRecord = {
+  id: uuid, vehicleId: uuid, plate: string, projectId: nullableUuid, projectName: nullableString,
+  date, name: string, quantity: decimal, unitPrice: decimal, amount: decimal, purchaseArea: string,
+  createdById: string, createdBy: string, createdAt: dateTime, updatedBy: string, updatedAt: dateTime,
+  photos: array(ref("PartPhoto")),
 };
 const companySettingsFields = {
   timeZone: { ...string, description: "IANA 业务时区，如 Asia/Shanghai" },
@@ -413,7 +446,47 @@ export const openApiDocument = {
     "/api/fuel/options": {
       get: {
         tags: ["档案"], summary: "查询车辆和司机选项",
+        description: "提供当前项目，用于录单及选择车辆与司机。车辆选项省略购入价。",
         responses: replies(object({ vehicles: array(ref("Vehicle")), drivers: array(ref("Driver")) })),
+      },
+    },
+    "/api/fuel/projects": {
+      get: {
+        tags: ["档案"], summary: "分页查询项目档案",
+        parameters: [...pageParams, query("keyword", string), query("isActive", catalogStatus)],
+        responses: replies(page(ref("FleetProject"))),
+      },
+      post: {
+        tags: ["档案"], summary: "新增项目档案",
+        description: "仅公司管理员可用。项目名称在公司内唯一。",
+        requestBody: requestBody(object(projectInput, ["name"])), responses: replies(ref("FleetProject"), 201),
+      },
+    },
+    "/api/fuel/projects/{id}": {
+      get: {
+        tags: ["档案"], summary: "查询项目详情", parameters: [pathId], responses: replies(ref("FleetProject")),
+      },
+      put: {
+        tags: ["档案"], summary: "修改或启停项目", parameters: [pathId],
+        requestBody: requestBody(object(projectInput, ["name"])), responses: replies(ref("FleetProject")),
+      },
+    },
+    "/api/fuel/projects/options": {
+      get: {
+        tags: ["档案"], summary: "查询项目选项",
+        description: "包含已停用项目，便于查询历史配件记录。",
+        responses: replies(array(object({ id: uuid, name: string, isActive: boolean }))),
+      },
+    },
+    "/api/fuel/projects/import": {
+      post: {
+        tags: ["导入"], summary: "批量导入项目档案",
+        description: "仅公司管理员可用。有效行新增，批内及库内重名行列入 issues，保留已有项目内容。电话使用文本。",
+        requestBody: requestBody(object({ rows: {
+          ...array(object({ rowNumber: integer, name: string, manager: string, phone: string }, ["rowNumber", "name"])),
+          minItems: 1, maxItems: FUEL_IMPORT_LIMIT,
+        } }, ["rows"])),
+        responses: replies(object({ added: integer, issues: array(object({ rowNumber: integer, name: string, reason: string })) })),
       },
     },
     "/api/fuel/vehicles": {
@@ -434,10 +507,11 @@ export const openApiDocument = {
       },
       put: {
         tags: ["档案"], summary: "修改车辆", parameters: [pathId],
+        description: "项目、购入日期、购入价省略时沿用原值，传入 null 可清空。停用项目可保留原关联。",
         requestBody: requestBody(ref("VehicleInput")), responses: replies(ref("Vehicle")),
       },
       delete: {
-        tags: ["档案"], summary: "删除无加油记录的车辆", parameters: [pathId],
+        tags: ["档案"], summary: "删除无加油及配件历史的车辆", parameters: [pathId],
         responses: replies(idResult),
       },
     },
@@ -485,7 +559,7 @@ export const openApiDocument = {
       },
       put: {
         tags: ["档案"], summary: "修改司机", parameters: [pathId],
-        description: "仅能修改本公司司机，允许与本公司其他司机同名；档案身份由 id 确定。",
+        description: "仅能修改本公司司机。项目省略时沿用原值，传入 null 可清空。档案身份由 id 确定，同公司司机可以同名。",
         requestBody: requestBody(ref("DriverInput")), responses: replies(ref("Driver")),
       },
       delete: {
@@ -586,6 +660,84 @@ export const openApiDocument = {
         })),
       },
     },
+    "/api/parts/records": {
+      get: {
+        tags: ["车辆配件"], summary: "分页查询有效配件记录",
+        parameters: partFilterParams, responses: replies(page(ref("PartRecord"), { totalAmount: decimal })),
+      },
+      post: {
+        tags: ["车辆配件"], summary: "录入配件记录",
+        description: "服务端按数量乘单价计算总价并保留两位小数。车辆及项目须属于登录账号所在公司。",
+        requestBody: requestBody(object(partInput, partRequired)), responses: replies(ref("PartRecord"), 201),
+      },
+    },
+    "/api/parts/records/{id}": {
+      get: {
+        tags: ["车辆配件"], summary: "查询配件明细和修改历史", parameters: [pathId],
+        responses: replies(object({ record: ref("PartRecord"), changes: array(ref("FuelChange")) })),
+      },
+      put: {
+        tags: ["车辆配件"], summary: "修改配件记录并留痕", parameters: [pathId],
+        description: "公司管理员可修改本公司配件记录，录入员可修改本人创建的记录。",
+        requestBody: requestBody(object({ ...partInput, reason: partReason }, [...partRequired, "reason"])),
+        responses: replies(ref("PartRecord")),
+      },
+      delete: {
+        tags: ["车辆配件"], summary: "删除配件记录并保留留档", parameters: [pathId],
+        description: "仅公司管理员可用。删除后仍可通过删除日志查看原单。",
+        requestBody: requestBody(object({ reason: partReason }, ["reason"])), responses: replies(idResult),
+      },
+    },
+    "/api/parts/deletions": {
+      get: {
+        tags: ["车辆配件"], summary: "分页查询配件删除日志", parameters: partFilterParams,
+        description: "仅公司管理员可用。按原配件记录的车牌、购买月份与项目归属筛选。",
+        responses: replies(page(object({ ...partRecord, deletedBy: string, deletedAt: dateTime, deletionReason: string }))),
+      },
+    },
+    "/api/parts/photos/{id}": {
+      get: {
+        tags: ["车辆配件"], summary: "读取配件照片", parameters: [pathId],
+        description: "返回 Base64 数据。已删除记录的照片及已移除照片仅限公司管理员查看。",
+        responses: replies(object({ ...partPhoto, data: partPhotoData })),
+      },
+    },
+    "/api/parts/costs": {
+      get: {
+        tags: ["报表"], summary: "按车牌或项目查询配件成本",
+        description: "车牌模式统计累计、本月及近 12 个月配件费。项目模式按每笔有效记录所存项目归属和所选月份统计，仅展示当月有记录的车辆。",
+        parameters: [
+          { ...query("scope", { type: "string", enum: ["vehicle", "project"] }), required: true },
+          query("vehicleId", { ...uuid, description: "scope=vehicle 时必填。" }),
+          query("projectId", { ...projectFilter, description: "scope=project 时必填，可用 unassigned。" }),
+          query("month", { ...month, description: "项目模式的月份，省略时为公司业务时区的本月。" }),
+        ],
+        responses: replies({ oneOf: [
+          object({
+            scope: { ...string, const: "vehicle" }, vehicleId: uuid, month, totalAmount: decimal, monthAmount: decimal,
+            months: array(object({ month, amount: decimal })),
+          }, ["scope", "vehicleId", "month", "totalAmount", "monthAmount", "months"]),
+          object({
+            scope: { ...string, const: "project" }, projectId: projectFilter, month, totalAmount: decimal,
+            vehicles: array(object({ vehicleId: uuid, plate: string, amount: decimal, count: integer })),
+          }, ["scope", "projectId", "month", "totalAmount", "vehicles"]),
+        ] }),
+      },
+    },
+    "/api/vehicle-costs": {
+      get: {
+        tags: ["报表"], summary: "查询累计车辆成本及 Excel 导出数据",
+        description: "仅公司管理员可用。累计已知成本为已录入购入价与有效配件费之和。购入价缺失时返回 null。项目筛选按车辆档案当前项目。",
+        parameters: [query("vehicleId", uuid), query("projectId", projectFilter)],
+        responses: replies(object({
+          items: array(object({
+            id: uuid, plate: string, projectName: nullableString, purchaseDate: nullableDate, purchasePrice: nullableDecimal,
+            partsAmount: decimal, knownAmount: decimal,
+          })),
+          totalPurchasePrice: decimal, totalPartsAmount: decimal, totalKnownAmount: decimal, missingPurchasePriceCount: integer,
+        })),
+      },
+    },
   },
   components: {
     securitySchemes: {
@@ -622,14 +774,22 @@ export const openApiDocument = {
         timeZone: string,
       }, ["id", "name", "role", "companyId", "companyName", "permissions", "timeZone"]),
       FuelMonthMetrics: object({ ...fuelMetrics, month }),
-      VehicleInput: object({ plate: string, fuelType, notes: string }, ["plate", "fuelType"]),
+      FleetProject: object({ id: uuid, ...projectInput, createdAt: dateTime, updatedAt: dateTime }),
+      PartPhoto: object(partPhoto, ["id", "mimeType"]),
+      PartRecord: object(partRecord, Object.keys(partRecord)),
+      VehicleInput: object({
+        plate: string, fuelType, notes: string, projectId: nullableUuid, purchaseDate: nullableDate,
+        purchasePrice: { oneOf: [...decimalInput.oneOf, { type: "null" }], description: "非负购入价，最多 16 位整数和 2 位小数，仅公司管理员可维护。" },
+      }, ["plate", "fuelType"]),
       Vehicle: object({
         id: uuid, plate: string, fuelType, notes: string, createdAt: string, updatedAt: string,
-        refuelCount: integer, lastDate: { type: ["string", "null"] }, lastOdometer: nullableDecimal,
+        refuelCount: integer, lastDate: nullableDate, lastOdometer: nullableDecimal, hasPartRecords: boolean,
+        ...projectSelectionFields, purchaseDate: nullableDate,
+        purchasePrice: { ...nullableDecimal, description: "仅公司管理员查询车辆档案时返回，未录入为 null。" },
       }),
-      DriverInput: object({ name: string, phone: string, isActive: { type: "boolean" }, notes: string }, ["name", "isActive"]),
+      DriverInput: object({ name: string, phone: string, isActive: boolean, notes: string, projectId: nullableUuid }, ["name", "isActive"]),
       Driver: object({
-        id: uuid, name: string, phone: string, isActive: { type: "boolean" }, notes: string,
+        id: uuid, name: string, phone: string, isActive: boolean, notes: string, ...projectSelectionFields,
         createdAt: string, updatedAt: string, refuelCount: integer,
       }),
       FuelRecordInput: object(recordInput, recordRequired),

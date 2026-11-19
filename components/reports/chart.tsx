@@ -10,7 +10,7 @@ import {
   TitleComponent,
   TooltipComponent,
 } from "echarts/components";
-import { init, use as registerECharts, type EChartsType } from "echarts/core";
+import { init, use as registerECharts, type ECElementEvent, type EChartsType } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
 
@@ -30,9 +30,11 @@ registerECharts([
 export default function Chart({
   option,
   label,
+  onSeriesClick,
 }: {
   option: EChartsOption;
   label: string;
+  onSeriesClick?: (index: number) => void;
 }) {
   const element = useRef<HTMLDivElement>(null);
   const chart = useRef<EChartsType | null>(null);
@@ -70,6 +72,18 @@ export default function Chart({
       aria: { enabled: true, label: { description: label } },
     }, { notMerge: true });
   }, [label, option]);
+
+  useEffect(() => {
+    const instance = chart.current;
+    if (!instance || !onSeriesClick) return;
+    function select(event: ECElementEvent) {
+      if (event.componentType === "series" && Number.isInteger(event.dataIndex)) onSeriesClick?.(event.dataIndex);
+    }
+    instance.on("click", select);
+    return () => {
+      if (!instance.isDisposed()) instance.off("click", select);
+    };
+  }, [onSeriesClick]);
 
   return <div ref={element} style={{ height: "100%" }} role="img" aria-label={label} />;
 }
