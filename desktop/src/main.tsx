@@ -169,7 +169,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
       ) : accountPage || pathname === "/" ? <AdminLoading /> : (
         <AppQueryProvider key={`${account.id}:${account.companyId ?? "platform"}:${account.role}`}>
           <Suspense fallback={<AdminLoading />}>
-            <AdminShell name={account.name} companyName={account.companyName} permissions={account.permissions}>
+            <AdminShell name={account.name} permissions={account.permissions}>
               <Suspense fallback={<AdminLoading />}>
                 <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} />
               </Suspense>

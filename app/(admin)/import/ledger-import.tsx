@@ -2,7 +2,7 @@
 
 import { DownloadOutlined, FileExcelOutlined, UploadOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Progress, Select, Table, Upload } from "antd";
+import { Alert, App, Button, Card, Progress, Select, Space, Table, Upload } from "antd";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { ApiClientError, apiFetch, jsonRequest } from "@/lib/api-client";
@@ -44,6 +44,7 @@ export function LedgerImport() {
   const [date1904, setDate1904] = useState(false);
   const [mapping, setMapping] = useState<Mapping>({});
   const [defaultFuelType, setDefaultFuelType] = useState<"diesel" | "gasoline">("diesel");
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [reading, setReading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -140,41 +141,46 @@ export function LedgerImport() {
     }
   }
 
-  async function template() {
+  async function downloadTemplate() {
+    setDownloadingTemplate(true);
     try {
       await downloadSheet("加油台账导入模板.xlsx", "加油台账", [fields.map(({ label }) => label)]);
     } catch {
       message.error("模板下载失败，请重试。");
+    } finally {
+      setDownloadingTemplate(false);
     }
   }
 
   return (
-    <AdminPage
-      title="数据导入"
-      className={styles.page}
-      actions={<Button icon={<DownloadOutlined />} onClick={() => void template()}>下载模板</Button>}
-    >
+    <AdminPage title="数据导入" className={styles.page}>
       <Card className={styles.card} title="上传文件">
         <div className={styles.uploadRow}>
           <div className={styles.uploadInfo}>
             <span className={styles.fileIcon} aria-hidden="true"><FileExcelOutlined /></span>
             <div className={styles.fileText}>
               {filename && <div className={styles.fileName} role="status">{filename} · {rows.length} 条记录</div>}
+              <p className={styles.hint}>使用模板时请保留表头，从第 2 行开始填写。</p>
               <p className={styles.hint}>文件金额作为实付金额，系统反算单价。档案中缺少的车辆和司机会在导入时创建。</p>
             </div>
           </div>
-          <Upload
-            accept=".xlsx,.csv"
-            maxCount={1}
-            showUploadList={false}
-            disabled={reading || importing}
-            beforeUpload={(file) => {
-              void selectFile(file);
-              return Upload.LIST_IGNORE;
-            }}
-          >
-            <Button type="primary" icon={<UploadOutlined />} loading={reading}>选择 XLSX 或 CSV</Button>
-          </Upload>
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} loading={downloadingTemplate} onClick={() => void downloadTemplate()}>
+              下载模板
+            </Button>
+            <Upload
+              accept=".xlsx,.csv"
+              maxCount={1}
+              showUploadList={false}
+              disabled={reading || importing}
+              beforeUpload={(file) => {
+                void selectFile(file);
+                return Upload.LIST_IGNORE;
+              }}
+            >
+              <Button type="primary" icon={<UploadOutlined />} loading={reading}>选择 XLSX 或 CSV</Button>
+            </Upload>
+          </Space>
         </div>
         {problem && <Alert className={styles.sectionGap} type="error" message={problem} showIcon />}
       </Card>

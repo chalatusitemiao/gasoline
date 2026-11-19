@@ -112,12 +112,10 @@ const layoutSettings = {
 export function AdminShell({
   children,
   name,
-  companyName,
   permissions,
 }: {
   children: ReactNode;
   name: string;
-  companyName?: string | null;
   permissions: readonly Permission[];
 }) {
   const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
@@ -144,6 +142,7 @@ export function AdminShell({
     return permission !== null && hasPermission(permissions, permission) ? [item] : [];
   });
   const availableHeaderPages = headerPages.filter((item) => {
+    if (item.path === "/docs" && !platform) return false;
     const permission = pagePermission(item.path, permissions);
     return permission !== null && hasPermission(permissions, permission);
   });
@@ -218,21 +217,18 @@ export function AdminShell({
           )
           : defaultDom
       }
-      actionsRender={() => [
-        ...(companyName ? [<span key="company" className={styles.companyName} title={companyName}>{companyName}</span>] : []),
-        ...availableHeaderPages.map(({ path, name, icon }) => (
-          <MenuLink
-            key={path}
-            href={path}
-            className={styles.headerAction}
-            aria-label={name}
-            aria-current={currentPath === path ? "page" : undefined}
-            title={name}
-          >
-            {icon}
-          </MenuLink>
-        )),
-      ]}
+      actionsRender={() => availableHeaderPages.map(({ path, name, icon }) => (
+        <MenuLink
+          key={path}
+          href={path}
+          className={styles.headerAction}
+          aria-label={name}
+          aria-current={currentPath === path ? "page" : undefined}
+          title={name}
+        >
+          {icon}
+        </MenuLink>
+      ))}
       avatarProps={{
         render: () => (
           <Dropdown

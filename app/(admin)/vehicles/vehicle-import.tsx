@@ -1,14 +1,14 @@
 "use client";
 
-import { ImportOutlined, UploadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, ImportOutlined, UploadOutlined } from "@ant-design/icons";
 import { ProForm, ProFormSelect, ProFormTextArea } from "@ant-design/pro-components";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Tabs, Upload } from "antd";
+import { Alert, App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Tabs, Upload } from "antd";
 import { useState } from "react";
 import { FUEL_OPTIONS, QueryError } from "@/components/fuel/ui";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import { FUEL_IMPORT_LIMIT, plateKey, type FuelType } from "@/lib/fuel";
-import { readSheet } from "@/lib/spreadsheet-client";
+import { downloadSheet, readSheet } from "@/lib/spreadsheet-client";
 import styles from "./vehicle-import.module.css";
 
 type Fields = { fuelType: FuelType; notes?: string };
@@ -42,6 +42,7 @@ function guessPlateColumn(rows: string[][]) {
 }
 
 export function VehicleImport() {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<Fields>();
   const [open, setOpen] = useState(false);
@@ -51,6 +52,7 @@ export function VehicleImport() {
   const [column, setColumn] = useState(0);
   const [firstDataRow, setFirstDataRow] = useState<number | null>(null);
   const [reading, setReading] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const importPlates = useMutation({
@@ -84,6 +86,17 @@ export function VehicleImport() {
     setError("");
     importPlates.reset();
     setOpen(true);
+  }
+
+  async function downloadTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      await downloadSheet("车辆档案导入模板.xlsx", "车辆档案", [["车牌号"]]);
+    } catch {
+      message.error("模板下载失败，请重试。");
+    } finally {
+      setDownloadingTemplate(false);
+    }
   }
 
   async function chooseFile(file: File) {
@@ -183,14 +196,18 @@ export function VehicleImport() {
                   key: "file", label: "上传 Excel / CSV", disabled: working,
                   children: (
                     <Space direction="vertical" className={styles.fileControls}>
-                      <Upload
-                        accept=".xlsx,.csv"
-                        disabled={working}
-                        showUploadList={false}
-                        beforeUpload={(file) => { void chooseFile(file); return Upload.LIST_IGNORE; }}
-                      >
-                        <Button icon={<UploadOutlined />} disabled={working} loading={reading}>选择文件</Button>
-                      </Upload>
+                      <Space wrap>
+                        <Button icon={<DownloadOutlined />} loading={downloadingTemplate} onClick={() => void downloadTemplate()}>下载模板</Button>
+                        <Upload
+                          accept=".xlsx,.csv"
+                          disabled={working}
+                          showUploadList={false}
+                          beforeUpload={(file) => { void chooseFile(file); return Upload.LIST_IGNORE; }}
+                        >
+                          <Button icon={<UploadOutlined />} disabled={working} loading={reading}>选择 XLSX 或 CSV</Button>
+                        </Upload>
+                      </Space>
+                      {!sheet && <span className={styles.count}>使用模板时，从第 2 行起每行填写一个车牌号。</span>}
                       {sheet && (
                         <>
                           <span>{sheet.filename}</span>
