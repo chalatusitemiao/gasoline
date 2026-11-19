@@ -6,14 +6,14 @@
 
 | 角色 | 公司归属 | 权限范围 |
 | --- | --- | --- |
-| `super_admin` 超级管理员 | 无 | 公司管理、公司账号管理、平台公司级汇总、平台站点地址、接口文档 |
+| `super_admin` 超级管理员 | 无 | 公司管理、收款续费、公司账号管理、平台公司级汇总、平台站点地址、接口文档 |
 | `admin` 公司管理员 | 一家公司 | 原有管理员业务权限，限定本公司；管理本公司账号与业务配置 |
 | `operator` 录入员 | 一家公司 | 原有录入员业务权限，限定本公司；修改记录仍遵循仅修改本人录入记录的规则 |
 | `viewer` 只读人员 | 一家公司 | 原有只读业务权限，限定本公司 |
 
 超级管理员只拥有 `companies:manage`、`users:manage`、`platform:view`、`platform:settings`、`docs:view`，不继承公司管理员的业务权限。平台汇总提供公司级统计，不提供进入某家公司录单或读取台账明细的能力。
 
-全平台只能存在一个超级管理员。使用注册密钥进行首次初始化时建立该账号，初始化完成后关闭这条注册入口。普通账号管理不能新增、升级、降级、停用或删除超级管理员。超级管理员通过本人改密接口维护密码，成功后重新登录。
+全平台只能存在一个超级管理员。使用注册密钥进行首次初始化时建立该账号，初始化完成后关闭这条注册入口。普通账号管理不能新增、升级、降级、停用或删除超级管理员。超级管理员可以从右上角账号菜单修改本人的登录用户名和密码。
 
 公司账号只能归属一家公司，用户名在全平台唯一。公司管理员只能管理本公司账号，不能创建超级管理员或将账号迁到其他公司。每家公司应保留至少一名有效管理员，不允许通过普通账号管理停用或降级最后一名有效管理员。
 
@@ -24,6 +24,14 @@
 公司列表展示账号数量 `accountCount` 和有效管理员数量 `adminCount`。`adminCount=0` 时应提示补建公司管理员。历史迁移可能产生这种情况，系统不能擅自复用超级管理员或未知密码创建公司业务身份。
 
 公司支持修改资料、停用和重新启用。停用后其账号不能继续访问系统，已有会话也不能继续访问公司数据；重新启用公司不改变账号各自的启停状态。首期不提供物理删除公司或公司间迁移账号、档案、台账的功能。
+
+## 线下收款与租期
+
+超级管理员在「公司管理」为指定公司登记实收人民币金额和续费月数。登记与租期更新一同保存，续费记录包含金额、购买月数、租期起止时间、登记时间和登记人，并写入公司操作审计。
+
+租期为 `active` 时，续费接在当前到期时间之后。首次开通或已到期时，从登记时刻起算。日期按 `Asia/Shanghai` 的自然月计算，目标月份没有对应的日期时取该月最后一天。
+
+新公司待首次付款（`pending`），历史公司升级后暂未纳入计费（`unmanaged`），首次登记收款后进入有效租期。到期（`expired`）时，Web 和 Windows 的后续登录与业务请求均由服务端拦截，已有台账、车辆和司机等业务数据保留。公司或账号若被手动停用，续费后仍需先启用才能恢复访问。
 
 ## 数据与配置隔离
 
@@ -49,15 +57,24 @@
 
 ### 当前账号与密码
 
+- 公司账号凭据正确但租期尚未开通或已到期时，`POST /api/login` 返回 `403` 并提示联系平台管理员。已有会话在到期后的业务请求返回 `401`。
 - `GET /api/me`：返回当前账号、角色、权限、业务时区及 `companyId`、`companyName`。超级管理员的公司字段为 `null`。
 - `PUT /api/users/password`：提交 `{currentPassword, password}`，校验当前密码后修改本人密码并撤销本人会话，返回 `data: {requireLogin: true}`，需要重新登录。
+- 超级管理员通过右上角「修改登录账号」提交 `PUT /api/users/username`，请求体为 `{username, currentPassword}`。新用户名去除首尾空白后为 1 至 128 个字符，按 NFKC 规范化并忽略大小写比较。当前密码错误或新旧用户名规范化后相同返回 `400`，用户名已被占用返回 `409`，公司账号调用返回 `403`。成功返回 `data: {requireLogin: true}` 并撤销超级管理员的所有会话，随后用新用户名和当前密码登录同一超级管理员账号。
 
 ### 公司
 
-- `GET /api/companies?keyword=&page=&pageSize=`：仅超级管理员；返回分页 `{items, total, page, pageSize}`。公司字段为 `id`、`code`、`name`、`contactName`、`contactPhone`、`notes`、`isActive`、`createdAt`、`updatedAt`、`accountCount`、`adminCount`。
+- `GET /api/companies?keyword=&page=&pageSize=`：仅超级管理员；返回分页 `{items, total, page, pageSize}`。公司字段为 `id`、`code`、`name`、`contactName`、`contactPhone`、`notes`、`isActive`、`billingStatus`、`paidUntil`、`createdAt`、`updatedAt`、`accountCount`、`adminCount`。`isActive` 为手动启停状态，`paidUntil` 为 ISO 8601 截止时间或 `null`。
 - `POST /api/companies`：仅超级管理员；提交 `{name, contactName?, contactPhone?, notes?, adminUsername, adminPassword}`，同时创建公司和首个管理员，返回公司。
 - `PUT /api/companies/{id}`：仅超级管理员；提交 `{name, contactName?, contactPhone?, notes?, isActive}`，返回修改后的公司。
 - `GET /api/companies/audit?companyId=&page=&pageSize=`：仅超级管理员；按公司可选筛选操作审计，返回分页。审计字段为 `id`、`companyId`（可为空）、`actorId`、`actorName`、`action`、`targetId`、`details`、`createdAt`。
+
+### 收款续费
+
+- `GET /api/companies/{id}/renewals?page=&pageSize=` 由超级管理员查询指定公司的续费记录，按登记时间倒序返回 `{items, total, page, pageSize}`。
+- `POST /api/companies/{id}/renewals` 由超级管理员提交 `{requestId, amount, months}` 登记收款。`requestId` 为唯一 UUID，`amount` 为大于等于 `0.01`、小于等于 `9999999999.99` 的人民币十进制字符串，最多两位小数，`months` 为 1 至 120 的整数。成功返回 HTTP `201`。
+- 记录字段为 `id`、`amount`、`months`、`startsAt`、`endsAt`、`recordedAt`、`recordedBy`。`id` 为登记时提交的 `requestId`，`amount` 统一以两位小数返回，时间采用 ISO 8601，`recordedBy` 为登记人的显示名称。
+- 用相同 `requestId` 重试同一家公司、同一金额和月数时返回原记录。使用该编号提交其他公司或不同金额、月数时返回 `409`。
 
 ### 账号
 
@@ -131,6 +148,8 @@
 启动迁移流程同时执行 `lib/db/company-bootstrap.mjs`，将旧加密配置中的业务设置承接到默认公司，平台站点地址保留为平台配置。只有默认公司配置标记 `legacy_initialized=false` 时才复制旧设置，复制完成后更新标记；后续启动不会覆盖管理员已经修改的公司配置。配置承接失败时同样停止启动。
 
 默认公司不一定已有有效管理员：如果升级前唯一管理员就是原固定初始账号，它升级为超级管理员后不再拥有默认公司的业务身份。超级管理员需要在账号管理为默认公司补建 `admin`，并使用另行设置的密码登录该公司账号。系统不能自动继承未知密码或给超级管理员补公司权限。
+
+计费迁移后，迁移前已存在的公司保留原有访问规则，并显示为 `unmanaged`。首次登记线下收款时开始计算租期。
 
 以下是部署时应执行的操作，本文不代表这些操作已经完成：
 

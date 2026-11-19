@@ -3,6 +3,7 @@ import { FUEL_IMPORT_LIMIT, FUEL_PAGE_SIZE } from "./fuel";
 const string = { type: "string" };
 const integer = { type: "integer" };
 const date = { type: "string", format: "date" };
+const dateTime = { type: "string", format: "date-time" };
 const uuid = { type: "string", format: "uuid" };
 const decimal = { type: "string", description: "十进制数字字符串" };
 const decimalInput = { oneOf: [decimal, { type: "number" }] };
@@ -129,11 +130,26 @@ const companyInputFields = {
 };
 const companyFields = {
   id: uuid, code: { ...string, readOnly: true }, ...companyInputFields,
-  isActive: boolean,
+  isActive: { ...boolean, description: "公司手动启停状态" },
+  billingStatus: {
+    ...string, enum: ["unmanaged", "pending", "active", "expired"],
+    description: "unmanaged 表示存量公司暂未纳入计费，pending 表示待首次付款，active 表示租期有效，expired 表示已到期。",
+  },
+  paidUntil: { type: ["string", "null"], format: "date-time", description: "已付租期的截止时刻，尚未登记付款时为空。" },
   createdAt: { ...string, format: "date-time" },
   updatedAt: { ...string, format: "date-time" },
   accountCount: integer,
   adminCount: { ...integer, description: "有效公司管理员数量；为 0 时需要超级管理员补建" },
+};
+const renewalMonths = { ...integer, minimum: 1, maximum: 120 };
+const companyRenewalFields = {
+  id: { ...uuid, description: "本次收款登记的请求编号" },
+  amount: { ...decimal, pattern: "^\\d+\\.\\d{2}$", description: "实收人民币金额，保留两位小数。" },
+  months: renewalMonths,
+  startsAt: dateTime,
+  endsAt: dateTime,
+  recordedAt: dateTime,
+  recordedBy: { ...string, description: "登记人的显示名称" },
 };
 const platformTotals = {
   accountCount: integer, vehicleCount: integer, driverCount: integer,
@@ -169,11 +185,12 @@ export const openApiDocument = {
     "/api/login": {
       post: {
         tags: ["会话"], summary: "账号登录",
-        description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。",
+        description: "登录有效期 12 小时，连续 5 次凭据错误后锁定 5 分钟。公司账号凭据正确时，租期尚未开通或已到期会返回 403。已有会话在访问业务接口时校验租期，超出租期将返回 401。",
         security: [],
         requestBody: requestBody(object(credentials, ["username", "password"])),
         responses: {
           ...replies(object({ name: string })),
+          403: response("公司租期尚未开通、已到期或请求来源不受信任", { type: "null" }, 403),
           409: response("尚未注册后台账号", { type: "null" }, 409),
           503: response("数据库连接尚未配置", { type: "null" }, 503),
         },
@@ -235,6 +252,27 @@ export const openApiDocument = {
         responses: replies(object({ requireLogin: { ...boolean, const: true } }, ["requireLogin"])),
       },
     },
+    "/api/users/username": {
+      put: {
+        tags: ["账号管理"], summary: "修改超级管理员本人的登录账号",
+        description: "仅登录的超级管理员可使用，目标账号由会话确定。校验当前密码后修改同一超级管理员账号的登录用户名，撤销该账号的全部会话。随后使用新用户名和当前密码重新登录。",
+        requestBody: requestBody({
+          ...object({
+            username: {
+              ...credentials.username,
+              description: "新登录用户名，去除首尾空白后为 1 至 128 个字符。按 NFKC 规范化并忽略大小写比较，须全平台唯一。",
+            },
+            currentPassword: credentials.password,
+          }, ["username", "currentPassword"]),
+          additionalProperties: false,
+        }),
+        responses: {
+          ...replies(object({ requireLogin: { ...boolean, const: true } }, ["requireLogin"])),
+          400: response("请求参数无效、当前密码错误或新旧用户名规范化后相同", { type: "null" }, 400),
+          409: response("登录账号已被占用或当前账号已发生变化", { type: "null" }, 409),
+        },
+      },
+    },
     "/api/register": {
       post: {
         tags: ["会话"], summary: "初始化唯一超级管理员账号",
@@ -278,13 +316,13 @@ export const openApiDocument = {
     "/api/companies": {
       get: {
         tags: ["公司管理"], summary: "分页查询公司",
-        description: "仅超级管理员可用。返回账号数量及有效管理员数量，adminCount=0 的公司需补建公司管理员。",
+        description: "仅超级管理员可用。返回手动启停状态、租期状态、到期时间、账号数量及有效管理员数量。adminCount=0 的公司需补建公司管理员。",
         parameters: [...pageParams, query("keyword", string)],
         responses: replies(page(ref("Company"))),
       },
       post: {
         tags: ["公司管理"], summary: "创建公司和首个公司管理员",
-        description: "仅超级管理员可用。公司及管理员在同一事务中创建；管理员用户名全平台唯一。公司编号由服务端生成。",
+        description: "仅超级管理员可用。公司及管理员在同一事务中创建，管理员用户名全平台唯一。公司编号由服务端生成。新公司初始租期状态为 pending，首次登记收款后方可访问公司业务。",
         requestBody: requestBody(object({
           ...companyInputFields,
           adminUsername: { ...credentials.username },
@@ -296,16 +334,45 @@ export const openApiDocument = {
     "/api/companies/{id}": {
       put: {
         tags: ["公司管理"], summary: "修改公司资料及启停状态",
-        description: "仅超级管理员可用。停用公司会阻止该公司账号继续访问，历史数据保留。公司不提供物理删除接口。",
+        description: "仅超级管理员可用。停用公司会阻止该公司账号继续访问，历史数据保留。重新启用后仍按租期及各账号的启停状态判断访问权限。公司不提供物理删除接口。",
         parameters: [pathId],
         requestBody: requestBody(object({ ...companyInputFields, isActive: boolean }, ["name", "isActive"])),
         responses: replies(ref("Company")),
       },
     },
+    "/api/companies/{id}/renewals": {
+      get: {
+        tags: ["公司管理"], summary: "分页查询公司收款续费记录",
+        description: "仅超级管理员可用。按登记时间倒序返回线下收款和续费记录。",
+        parameters: [pathId, ...pageParams],
+        responses: { ...replies(page(ref("CompanyRenewal"))), 404: response("公司不存在", { type: "null" }, 404) },
+      },
+      post: {
+        tags: ["公司管理"], summary: "登记线下收款并续期",
+        description: "仅超级管理员可用。续期从当前到期时刻与登记时刻中较晚的一项开始，按 Asia/Shanghai 自然月计算，目标月份没有对应日期时取该月最后一天。停用状态独立管理。以相同请求编号重试相同收款时返回原记录。",
+        parameters: [pathId],
+        requestBody: requestBody({
+          ...object({
+            requestId: { ...uuid, description: "每笔收款使用新的 UUID，重试同一笔收款时沿用原 UUID。" },
+            amount: {
+              ...string, pattern: "^\\s*(?:0\\.(?:0[1-9]|[1-9]\\d?)|[1-9]\\d{0,9}(?:\\.\\d{1,2})?)\\s*$",
+              description: "实收人民币金额，范围为 0.01 至 9999999999.99，最多两位小数。", example: "299.00",
+            },
+            months: renewalMonths,
+          }, ["requestId", "amount", "months"]),
+          additionalProperties: false,
+        }),
+        responses: {
+          ...replies(ref("CompanyRenewal"), 201),
+          404: response("公司不存在", { type: "null" }, 404),
+          409: response("请求编号已用于其他收款内容", { type: "null" }, 409),
+        },
+      },
+    },
     "/api/companies/audit": {
       get: {
         tags: ["公司管理"], summary: "分页查询公司操作审计",
-        description: "仅超级管理员可用。审计记录公司创建、资料或状态变更、账号及配置等管理操作，不返回密码或密码哈希。",
+        description: "仅超级管理员可用。审计记录公司创建、资料或状态变更、收款续费、账号及配置等管理操作，不返回密码或密码哈希。",
         parameters: [...pageParams, query("companyId", uuid)],
         responses: replies(page(ref("CompanyAudit"))),
       },
@@ -515,8 +582,9 @@ export const openApiDocument = {
       User: object(userFields, ["id", "name", "username", "role", "companyId", "companyName", "isActive", "createdAt"]),
       Company: object(companyFields, [
         "id", "code", "name", "contactName", "contactPhone", "notes", "isActive",
-        "createdAt", "updatedAt", "accountCount", "adminCount",
+        "billingStatus", "paidUntil", "createdAt", "updatedAt", "accountCount", "adminCount",
       ]),
+      CompanyRenewal: object(companyRenewalFields, ["id", "amount", "months", "startsAt", "endsAt", "recordedAt", "recordedBy"]),
       CompanyAudit: object({
         id: uuid, companyId: { type: ["string", "null"], format: "uuid" },
         actorId: string, actorName: string, action: string, targetId: string,

@@ -7,6 +7,7 @@ import { loginAttempts } from "@/lib/db/auth-guard-schema";
 import { companies, companyAuditLogs } from "@/lib/db/company-schema";
 import { authMigrationState, session, user, userCredential } from "@/lib/db/schema";
 import { ApiError } from "@/lib/api-error";
+import { companyBillingStatus } from "@/lib/company-access";
 import { isCompanyUserRole, isUserRole, type CompanyUserRole } from "@/lib/permissions";
 import type { ApiActor } from "@/lib/server-api";
 import { getSystemSettings, hashSettingsPassword, verifySettingsPassword } from "@/lib/system-settings";
@@ -81,7 +82,9 @@ export async function upsertFleetUser(
   return accountUser;
 }
 
-export async function authorizeFuelAccount(username: string, password: string) {
+export async function authorizeFuelAccount(username: string, password: string): Promise<
+  { accountUser: typeof user.$inferSelect } | { billingStatus: "pending" | "expired" } | null
+> {
   const normalizedUsername = normalizeUsername(username);
   if (!normalizedUsername) return null;
   const db = await getDb();
@@ -118,20 +121,16 @@ export async function authorizeFuelAccount(username: string, password: string) {
           .where(eq(loginAttempts.id, attemptId));
         const [migratedUser] = await tx.select().from(user)
           .where(eq(user.username, normalizedUsername)).limit(1);
-        return migratedUser?.isActive ? migratedUser : null;
+        return migratedUser?.isActive ? { accountUser: migratedUser } : null;
       }
     }
 
-    let accountAvailable = Boolean(accountUser?.isActive && isUserRole(accountUser.role));
-    if (accountUser?.role === "super_admin") {
-      accountAvailable = accountAvailable && accountUser.companyId === null;
-    } else if (accountUser?.companyId) {
-      const [company] = await tx.select({ isActive: companies.isActive }).from(companies)
-        .where(eq(companies.id, accountUser.companyId)).limit(1);
-      accountAvailable = accountAvailable && Boolean(company?.isActive);
-    } else {
-      accountAvailable = false;
-    }
+    const [company] = accountUser?.companyId && accountUser.role !== "super_admin"
+      ? await tx.select({ isActive: companies.isActive, billingRequired: companies.billingRequired, paidUntil: companies.paidUntil })
+        .from(companies).where(eq(companies.id, accountUser.companyId)).limit(1)
+      : [];
+    const accountAvailable = accountUser?.isActive && isUserRole(accountUser.role)
+      && (accountUser.role === "super_admin" ? accountUser.companyId === null : company?.isActive);
 
     if (!accountAvailable || !credential) {
       await verifySettingsPassword(password, "00000000000000000000000000000000:" + "0".repeat(128));
@@ -149,10 +148,14 @@ export async function authorizeFuelAccount(username: string, password: string) {
 
     await tx.update(loginAttempts).set({ failures: 0, lockedUntil: null })
       .where(eq(loginAttempts.id, attemptId));
+    if (company) {
+      const billingStatus = companyBillingStatus(company.billingRequired, company.paidUntil);
+      if (billingStatus === "pending" || billingStatus === "expired") return { billingStatus };
+    }
     await tx.update(authMigrationState).set({ legacyCredentialsMigrated: true })
       .where(eq(authMigrationState.id, migrationStateId));
 
-    return accountUser;
+    return { accountUser };
   });
 }
 
@@ -285,7 +288,7 @@ export async function setFuelUserAccess(
       .where(and(eq(user.id, id), actor.role === "admin" ? eq(user.companyId, actor.companyId!) : undefined))
       .for("update");
     if (!target) return null;
-    if (target.role === "super_admin") throw new ApiError(403, "超级管理员的角色和状态不能修改，请通过个人密码入口修改密码");
+    if (target.role === "super_admin") throw new ApiError(403, "超级管理员的角色和状态不能修改。登录账号和密码通过个人账号菜单修改");
     if (!target.companyId) throw new ApiError(409, "目标账号尚未归属公司");
     const [company] = await tx.select({ name: companies.name }).from(companies)
       .where(eq(companies.id, target.companyId)).limit(1);
@@ -344,16 +347,56 @@ export async function listFuelUsers(actor: ApiActor, companyId?: string) {
     .orderBy(user.createdAt, user.username);
 }
 
+async function requireCurrentFuelPassword(
+  tx: Pick<Awaited<ReturnType<typeof getDb>>, "select">,
+  userId: string,
+  currentPassword: string,
+) {
+  const [credential] = await tx.select({ passwordHash: userCredential.passwordHash }).from(userCredential)
+    .where(eq(userCredential.userId, userId)).for("update");
+  if (!credential || !await verifySettingsPassword(currentPassword, credential.passwordHash)) {
+    throw new ApiError(400, "当前密码不正确");
+  }
+}
+
+export async function changeOwnFuelUsername(actor: ApiActor, currentPassword: string, username: string) {
+  if (actor.role !== "super_admin") throw new ApiError(403, "只有超级管理员可以修改本人的登录账号");
+
+  const displayName = username.trim();
+  const normalizedUsername = normalizeUsername(displayName);
+  const db = await getDb();
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(1662806122, 2)`);
+      const [current] = await tx.select({ name: user.name, username: user.username }).from(user)
+        .where(and(eq(user.id, actor.id), eq(user.role, "super_admin"), eq(user.isActive, true))).for("update");
+      if (!current) throw new ApiError(403, "当前账号无权修改登录账号");
+      if (current.name !== actor.name) throw new ApiError(409, "登录账号已发生变化，请重新登录后再试");
+
+      await requireCurrentFuelPassword(tx, actor.id, currentPassword);
+      if (current.username === normalizedUsername) throw new ApiError(400, "请输入不同的登录账号");
+
+      await tx.update(user).set({ name: displayName, username: normalizedUsername, updatedAt: new Date() })
+        .where(eq(user.id, actor.id));
+      await tx.delete(session).where(eq(session.userId, actor.id));
+      await tx.insert(companyAuditLogs).values({
+        companyId: null, actorId: actor.id, actorName: current.name,
+        action: "account.username_change", targetId: actor.id,
+        details: { before: { username: current.name }, after: { username: displayName } },
+      });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new ApiError(409, "该用户名已存在");
+    throw error;
+  }
+}
+
 export async function changeOwnFuelPassword(actor: ApiActor, currentPassword: string, password: string) {
   const db = await getDb();
   const passwordHash = await hashSettingsPassword(password);
   await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(1662806122, 2)`);
-    const [credential] = await tx.select({ passwordHash: userCredential.passwordHash }).from(userCredential)
-      .where(eq(userCredential.userId, actor.id)).for("update");
-    if (!credential || !await verifySettingsPassword(currentPassword, credential.passwordHash)) {
-      throw new ApiError(400, "当前密码不正确");
-    }
+    await requireCurrentFuelPassword(tx, actor.id, currentPassword);
     await tx.update(userCredential).set({ passwordHash, updatedAt: new Date() })
       .where(eq(userCredential.userId, actor.id));
     await tx.delete(session).where(eq(session.userId, actor.id));

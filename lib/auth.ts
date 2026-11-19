@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
+import { companyBillingDenials, companyBillingStatus } from "./company-access";
 import { getDatabaseUrl, getDb } from "./db";
 import { account, session, user, verification } from "./db/schema";
 import { companies } from "./db/company-schema";
@@ -64,12 +65,24 @@ function createAuth(origin: string, db: Awaited<ReturnType<typeof getDb>>) {
           method: "POST",
           body: loginSchema,
         }, async (ctx) => {
-          const accountUser = await authorizeFuelAccount(ctx.body.username, ctx.body.password);
-          if (!accountUser) {
+          const authorization = await authorizeFuelAccount(ctx.body.username, ctx.body.password);
+          if (!authorization) {
             throw new APIError("UNAUTHORIZED", { message: loginErrorMessage });
           }
+          if ("billingStatus" in authorization) {
+            throw new APIError("FORBIDDEN", companyBillingDenials[authorization.billingStatus]);
+          }
+          const { accountUser } = authorization;
           const session = await ctx.context.internalAdapter.createSession(accountUser.id);
           if (!session) throw new APIError("INTERNAL_SERVER_ERROR");
+          if (accountUser.role === "super_admin") {
+            // 改名与登录并行时，旧用户名创建的会话也必须作废。
+            const [current] = await db.select({ username: user.username }).from(user).where(eq(user.id, accountUser.id));
+            if (current?.username !== accountUser.username) {
+              await ctx.context.internalAdapter.deleteSession(session.token);
+              throw new APIError("UNAUTHORIZED", { message: loginErrorMessage });
+            }
+          }
           await setSessionCookie(ctx, { session, user: accountUser });
           return ctx.json({ name: accountUser.name });
         }),
@@ -110,14 +123,23 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
       role: user.role,
       isActive: user.isActive,
       companyId: user.companyId,
-      companyName: companies.name,
-      companyIsActive: companies.isActive,
+      company: {
+        name: companies.name,
+        isActive: companies.isActive,
+        billingRequired: companies.billingRequired,
+        paidUntil: companies.paidUntil,
+      },
     }).from(user).leftJoin(companies, eq(user.companyId, companies.id))
       .where(eq(user.id, result.user.id)).limit(1);
     if (!accountUser?.isActive || !isUserRole(accountUser.role)) return null;
-    if (accountUser.role === "super_admin"
-      ? accountUser.companyId !== null
-      : !accountUser.companyId || !accountUser.companyIsActive) return null;
+    const { company } = accountUser;
+    if (accountUser.role === "super_admin") {
+      if (accountUser.companyId !== null) return null;
+    } else {
+      if (!accountUser.companyId || !company?.isActive) return null;
+      const billingStatus = companyBillingStatus(company.billingRequired, company.paidUntil);
+      if (billingStatus === "pending" || billingStatus === "expired") return null;
+    }
     return {
       ...result,
       user: {
@@ -126,7 +148,7 @@ export async function getRequestSession(requestHeaders: Headers, requestUrl?: st
         username: accountUser.username,
         role: accountUser.role,
         companyId: accountUser.companyId,
-        companyName: accountUser.companyName,
+        companyName: company?.name ?? null,
         permissions: permissionsForRole(accountUser.role),
       },
     };

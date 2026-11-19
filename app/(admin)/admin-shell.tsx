@@ -109,7 +109,7 @@ export function AdminShell({
   const { pathname, Link, MenuLink = Link, onSessionEnded } = useAppNavigation();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
-  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [accountEditor, setAccountEditor] = useState<"username" | "password" | null>(null);
   const platform = hasPermission(permissions, "platform:view");
   const pages = navigation.map((item) => ({ ...item, name: item.path === "/dashboard" && platform ? "平台业务汇总" : item.name }));
   const [signingOut, setSigningOut] = useState(false);
@@ -135,15 +135,19 @@ export function AdminShell({
   });
   const routes = { path: "/", children: availableNavigation };
 
+  async function returnToLogin() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    if (onSessionEnded) await onSessionEnded();
+    else window.location.replace("/login");
+  }
+
   async function signOut() {
     setSigningOut(true);
 
     try {
       await apiFetch("/api/logout", { method: "POST" });
-      await queryClient.cancelQueries();
-      queryClient.clear();
-      if (onSessionEnded) await onSessionEnded();
-      else window.location.replace("/login");
+      await returnToLogin();
     } catch {
       message.error("退出失败，请重试。");
       setSigningOut(false);
@@ -220,10 +224,14 @@ export function AdminShell({
           <Dropdown
             trigger={["click"]}
             menu={{
-              items: [{ key: "password", icon: <KeyOutlined />, label: "修改本人密码" }, { key: "logout", icon: <LogoutOutlined />, label: "退出登录" }],
+              items: [
+                ...(platform ? [{ key: "username", icon: <UserOutlined />, label: "修改登录账号" }] : []),
+                { key: "password", icon: <KeyOutlined />, label: "修改本人密码" },
+                { key: "logout", icon: <LogoutOutlined />, label: "退出登录" },
+              ],
               onClick: ({ key }) => {
                 if (key === "logout") void signOut();
-                if (key === "password") setPasswordOpen(true);
+                if (key === "username" || key === "password") setAccountEditor(key);
               },
             }}
           >
@@ -242,14 +250,54 @@ export function AdminShell({
     >
       <div className={styles.content}>{children}</div>
     </ProLayout>
-    <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} onSaved={async () => {
-      await queryClient.cancelQueries();
-      queryClient.clear();
-      if (onSessionEnded) await onSessionEnded();
-      else window.location.replace("/login");
-    }} />
+    {platform && <ChangeUsernameModal open={accountEditor === "username"} onClose={() => setAccountEditor(null)} onSaved={returnToLogin} />}
+    <ChangePasswordModal open={accountEditor === "password"} onClose={() => setAccountEditor(null)} onSaved={returnToLogin} />
     </>
   );
+}
+
+type UsernameValues = { username: string; currentPassword: string };
+
+function ChangeUsernameModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [form] = Form.useForm<UsernameValues>();
+  const { message } = App.useApp();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function close() {
+    if (saving) return;
+    form.resetFields();
+    setError("");
+    onClose();
+  }
+
+  async function save({ username, currentPassword }: UsernameValues) {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await apiFetch("/api/users/username", jsonRequest("PUT", { username: username.trim(), currentPassword }));
+      form.resetFields();
+      message.success("登录账号已修改，请用新账号重新登录");
+      await onSaved();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "修改登录账号失败，请重试");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <Modal title="修改登录账号" open={open} onCancel={close} onOk={() => form.submit()} confirmLoading={saving} okText="修改并重新登录" cancelText="取消" destroyOnHidden>
+    <Form<UsernameValues> form={form} layout="vertical" onFinish={save} disabled={saving} autoComplete="off">
+      <Form.Item name="username" label="新登录账号" rules={[{ required: true, whitespace: true, message: "请输入新登录账号" }]}>
+        <Input maxLength={128} />
+      </Form.Item>
+      <Form.Item name="currentPassword" label="当前密码" rules={[{ required: true, message: "请输入当前密码" }]}>
+        <Input.Password autoComplete="current-password" maxLength={1024} />
+      </Form.Item>
+      {error && <Alert type="error" showIcon message={error} />}
+    </Form>
+  </Modal>;
 }
 
 

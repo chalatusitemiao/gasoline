@@ -1,3 +1,5 @@
+export type CompanyBillingStatus = "unmanaged" | "pending" | "active" | "expired";
+
 export type Company = {
   id: string;
   code: string;
@@ -6,6 +8,8 @@ export type Company = {
   contactPhone: string;
   notes: string;
   isActive: boolean;
+  billingStatus: CompanyBillingStatus;
+  paidUntil: string | null;
   createdAt: string;
   updatedAt: string;
   accountCount: number;
@@ -13,6 +17,18 @@ export type Company = {
 };
 
 export type CompanyPage = { items: Company[]; total: number; page: number; pageSize: number };
+
+export type CompanyRenewal = {
+  id: string;
+  amount: string;
+  months: number;
+  startsAt: string;
+  endsAt: string;
+  recordedAt: string;
+  recordedBy: string;
+};
+
+export type CompanyRenewalPage = { items: CompanyRenewal[]; total: number; page: number; pageSize: number };
 
 export type CompanySummary = {
   companyId: string;

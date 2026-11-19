@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { companyBillingStatus } from "./company-access";
 import { getDb } from "./db";
 import { companies, companyAuditLogs, companySettings } from "./db/company-schema";
 import { drivers, fuelRecords, vehicles } from "./db/fuel-schema";
@@ -37,12 +38,20 @@ const adminCount = sql<number>`(select count(*)::integer from ${user} where ${us
 const companySelection = {
   id: companies.id, code: companies.code, name: companies.name,
   contactName: companies.contactName, contactPhone: companies.contactPhone, notes: companies.notes,
-  isActive: companies.isActive, createdAt: companies.createdAt, updatedAt: companies.updatedAt,
+  isActive: companies.isActive, billingRequired: companies.billingRequired, paidUntil: companies.paidUntil,
+  createdAt: companies.createdAt, updatedAt: companies.updatedAt,
   accountCount, adminCount,
 };
 
-function companyDates<T extends { createdAt: Date; updatedAt: Date }>(row: T) {
-  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+function companyData<T extends { billingRequired: boolean; paidUntil: Date | null; createdAt: Date; updatedAt: Date }>(row: T, now = new Date()) {
+  const { billingRequired, paidUntil, createdAt, updatedAt, ...fields } = row;
+  return {
+    ...fields,
+    billingStatus: companyBillingStatus(billingRequired, paidUntil, now),
+    paidUntil: paidUntil?.toISOString() ?? null,
+    createdAt: createdAt.toISOString(),
+    updatedAt: updatedAt.toISOString(),
+  };
 }
 
 function conflict(error: unknown): never {
@@ -60,7 +69,8 @@ export async function listCompanies(query: unknown) {
     const [summary] = await tx.select({ total: count() }).from(companies).where(where);
     const rows = await tx.select(companySelection).from(companies).where(where)
       .orderBy(asc(companies.createdAt), asc(companies.id)).limit(pageSize).offset((page - 1) * pageSize);
-    return { items: rows.map(companyDates), total: summary.total, page, pageSize };
+    const now = new Date();
+    return { items: rows.map((row) => companyData(row, now)), total: summary.total, page, pageSize };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
@@ -85,7 +95,7 @@ export async function createCompany(input: z.output<typeof createCompanySchema>,
         companyId: id, actorId: actor.id, actorName: actor.name, action: "company.create", targetId: id,
         details: { name: fields.name, adminUserId: accountId, adminUsername },
       });
-      return companyDates({ ...company, accountCount: 1, adminCount: 1 });
+      return companyData({ ...company, accountCount: 1, adminCount: 1 });
     });
   } catch (error) { conflict(error); }
 }
@@ -112,7 +122,7 @@ export async function updateCompany(id: string, input: z.output<typeof updateCom
       },
     });
     const [counts] = await tx.select({ accountCount, adminCount }).from(companies).where(eq(companies.id, id));
-    return companyDates({ ...updated, ...counts });
+    return companyData({ ...updated, ...counts });
   });
 }
 
