@@ -14,6 +14,6 @@ export const config = {
     "/dashboard/:path*", "/refuel/:path*", "/records/:path*",
     "/vehicle-report/:path*", "/driver-report/:path*", "/costs/:path*",
     "/vehicles/:path*", "/drivers/:path*", "/import/:path*", "/settings/:path*",
-    "/docs/:path*", "/calculation-docs/:path*", "/users/:path*",
+    "/docs/:path*", "/calculation-docs/:path*", "/operation-docs/:path*", "/users/:path*",
   ],
 };

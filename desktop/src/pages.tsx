@@ -3,7 +3,7 @@ import { Result } from "antd";
 import { AdminPage } from "@/components/admin-page";
 import { FuelPage } from "@/components/fuel/ui";
 import { monthInBusinessZone, todayInBusinessZone } from "@/lib/fuel-calendar";
-import { hasPermission, pagePermission, type Permission } from "@/lib/permissions";
+import { hasPermission, pagePermission, type Permission, type UserRole } from "@/lib/permissions";
 
 const PlatformOverview = lazy(() => import("@/components/platform-overview").then(({ PlatformOverview }) => ({ default: PlatformOverview })));
 const CompanyManagement = lazy(() => import("@/components/company-management").then(({ CompanyManagement }) => ({ default: CompanyManagement })));
@@ -21,14 +21,16 @@ const VehicleImport = lazy(() => import("@/app/(admin)/vehicles/vehicle-import")
 const LedgerImport = lazy(() => import("@/app/(admin)/import/ledger-import").then(({ LedgerImport }) => ({ default: LedgerImport })));
 const CompanySettingsPanel = lazy(() => import("@/components/system-settings-form").then(({ CompanySettingsPanel }) => ({ default: CompanySettingsPanel })));
 const CalculationDocs = lazy(() => import("@/app/(admin)/calculation-docs/calculation-docs").then(({ CalculationDocs }) => ({ default: CalculationDocs })));
+const OperationDocs = lazy(() => import("@/app/(admin)/operation-docs/operation-docs").then(({ OperationDocs }) => ({ default: OperationDocs })));
 const ApiDocs = lazy(() => import("@/app/(admin)/docs/api-docs").then(({ ApiDocs }) => ({ default: ApiDocs })));
 const UserManagement = lazy(() => import("@/components/user-management").then(({ UserManagement }) => ({ default: UserManagement })));
 
-export function DesktopPage({ pathname, search, timeZone, permissions }: {
+export function DesktopPage({ pathname, search, timeZone, permissions, role }: {
   pathname: string;
   search: string;
   timeZone: string;
   permissions: readonly Permission[];
+  role: UserRole;
 }) {
   const permission = pagePermission(pathname, permissions);
   if (permission && !hasPermission(permissions, permission)) {
@@ -74,6 +76,8 @@ export function DesktopPage({ pathname, search, timeZone, permissions }: {
       return <CompanyManagement />;
     case "/calculation-docs":
       return <CalculationDocs />;
+    case "/operation-docs":
+      return <OperationDocs role={role} />;
     case "/docs":
       return <ApiDocs />;
     default:

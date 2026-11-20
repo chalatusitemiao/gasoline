@@ -8,6 +8,7 @@ import {
   CarOutlined,
   DashboardOutlined,
   FileExcelOutlined,
+  FileTextOutlined,
   FolderOpenOutlined,
   FormOutlined,
   KeyOutlined,
@@ -92,6 +93,7 @@ const navigation: NavigationItem[] = [
 const headerPages = [
   { path: "/docs", name: "接口文档", icon: <BookOutlined /> },
   { path: "/calculation-docs", name: "计算文档", icon: <CalculatorOutlined /> },
+  { path: "/operation-docs", name: "操作文档", icon: <FileTextOutlined /> },
 ];
 
 // Ant Design Pro: config/defaultSettings.ts and src/app.tsx.

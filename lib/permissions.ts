@@ -92,7 +92,7 @@ export function pagePermission(pathname: string, granted: readonly string[] = []
   if (pathname === "/settings") return "settings:manage";
   if (pathname === "/users") return "users:manage";
   if (pathname === "/companies") return "companies:manage";
-  if (pathname === "/docs" || pathname === "/calculation-docs") return "docs:view";
+  if (pathname === "/docs" || pathname === "/calculation-docs" || pathname === "/operation-docs") return "docs:view";
   return null;
 }
 

@@ -145,7 +145,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
       refresh: () => { void session.refetch(); },
       onSessionEnded: () => endSession(),
     }}>
-      {!account.name || !account.timeZone ? (
+      {!account.name || !account.timeZone || !account.role ? (
         <>
           <div className={styles.changeServer}>{changeServerButton}{switchError && <p role="alert">{switchError}</p>}</div>
           <Suspense fallback={<Connecting />}>
@@ -173,7 +173,7 @@ function ConnectedDesktop({ server, onChangeServer }: { server: string; onChange
           <Suspense fallback={<AdminLoading />}>
             <AdminShell name={account.name} permissions={account.permissions} onCheckForUpdate={openUpdateDialog}>
               <Suspense fallback={<AdminLoading />}>
-                <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} />
+                <DesktopPage pathname={pathname} search={search} timeZone={account.timeZone} permissions={account.permissions} role={account.role} />
               </Suspense>
             </AdminShell>
           </Suspense>

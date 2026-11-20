@@ -1,0 +1,136 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(16px, 2.5vw, 36px);
+  max-inline-size: 1240px;
+}
+
+.contents {
+  position: sticky;
+  inset-block-start: 24px;
+  max-block-size: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 16px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.contents h2 {
+  margin: 0 8px 10px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.contents ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contents a {
+  display: block;
+  padding: 7px 8px;
+  border-radius: 5px;
+  color: var(--app-text-secondary);
+  line-height: 1.5;
+}
+
+.contents a:hover,
+.contents a:focus-visible {
+  background: #e6f4ff;
+  color: #0958d9;
+}
+
+.manual {
+  min-inline-size: 0;
+  padding: clamp(18px, 3vw, 36px);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-surface);
+}
+
+.introduction {
+  margin: 0;
+  color: var(--app-text-secondary);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.chapter {
+  margin-block-start: 28px;
+  padding-block-start: 24px;
+  border-block-start: 1px solid var(--app-border);
+  scroll-margin-block-start: 24px;
+}
+
+.chapter h2 {
+  margin: 0 0 14px;
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 1.55em;
+  list-style: decimal;
+  line-height: 1.75;
+}
+
+.steps li::marker {
+  color: #0958d9;
+  font-weight: 650;
+}
+
+.note {
+  margin: 16px 0 0;
+  padding: 9px 12px;
+  border-inline-start: 3px solid #91caff;
+  background: #f0f7ff;
+  color: var(--app-text-secondary);
+  line-height: 1.65;
+}
+
+.figure {
+  margin: 18px 0 0;
+  overflow: hidden;
+  border: 1px solid #e1e7ef;
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.screenshot {
+  display: block;
+  aspect-ratio: 8 / 5;
+  object-fit: contain;
+  background: var(--app-layout-bg);
+}
+
+.figure figcaption {
+  padding: 8px 12px;
+  border-block-start: 1px solid #e1e7ef;
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contents {
+    position: static;
+    max-block-size: none;
+  }
+
+  .contents ol {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  }
+}
