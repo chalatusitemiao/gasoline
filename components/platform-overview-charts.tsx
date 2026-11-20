@@ -2,7 +2,7 @@
 
 import { Column, Pie } from "@ant-design/charts";
 import { Empty, Segmented } from "antd";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { moneyText, numberText } from "@/components/fuel/ui";
 import { formatNumber } from "@/components/reports/report-ui";
 import { ReportDecimal, sharePercent } from "@/components/reports/report-values";
@@ -23,6 +23,39 @@ const comparisonLimit = 8;
 const shareLimit = 5;
 const shareColors = ["#1677ff", "#13a8a8", "#597ef7", "#73b72e", "#d89614", "#8c9bab"];
 const compactNumber = new Intl.NumberFormat("zh-CN", { notation: "compact", maximumFractionDigits: 2 });
+
+type ResizablePlot = ComponentRef<typeof Column> & { chart: { forceFit: () => unknown } };
+
+function usePlotResize(visible: boolean) {
+  const frame = useRef<HTMLDivElement>(null);
+  const plot = useRef<ResizablePlot>(null);
+
+  useEffect(() => {
+    const element = frame.current;
+    if (!visible || !element || typeof ResizeObserver === "undefined") return;
+
+    let lastWidth = element.clientWidth;
+    let pendingFrame: number | undefined;
+    const observer = new ResizeObserver(() => {
+      if (pendingFrame !== undefined) return;
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = undefined;
+        const width = element.clientWidth;
+        if (width === lastWidth) return;
+        lastWidth = width;
+        if (width > 0) plot.current?.chart.forceFit();
+      });
+    });
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+      if (pendingFrame !== undefined) cancelAnimationFrame(pendingFrame);
+    };
+  }, [visible]);
+
+  return { frame, plot };
+}
 
 function rankCompanies(items: readonly CompanySummary[], metric: MetricKey) {
   return items.map((company) => ({ company, value: new ReportDecimal(company[metric]) }))
@@ -60,6 +93,7 @@ export function PlatformComparison({ items }: { items: readonly CompanySummary[]
   const nameOf = companyNames(items);
   const format = (value: string) => `${definition.format(value)} ${definition.unit}`;
   const hasValues = rows.some(({ value }) => value.gt(0));
+  const { frame, plot } = usePlotResize(hasValues);
   const columnData = rows.map(({ company, value }) => ({
     key: company.companyId,
     label: nameOf(company),
@@ -74,8 +108,9 @@ export function PlatformComparison({ items }: { items: readonly CompanySummary[]
     )}>
       {hasValues ? (
         <div className={styles.comparison}>
-          <div className={styles.plot}>
+          <div ref={frame} className={styles.plot}>
             <Column
+              ref={plot}
               data={columnData}
               xField="key"
               yField="value"
@@ -137,13 +172,16 @@ export function PlatformAmountShare({ items, totalAmount }: { items: readonly Co
     amount: `${moneyText(value.toString())} 元`,
     percent: `${formatNumber(sharePercent(value, totalAmount))}%`,
   }));
+  const hasShares = shares.length > 0;
+  const { frame, plot } = usePlotResize(hasShares);
 
   return (
     <ChartSection title="公司加油金额占比">
-      {shares.length ? (
+      {hasShares ? (
         <div className={styles.share}>
-          <div className={`${styles.plot} ${styles.donut}`}>
+          <div ref={frame} className={`${styles.plot} ${styles.donut}`}>
             <Pie
+              ref={plot}
               data={shares}
               angleField="value"
               colorField="key"
