@@ -2,7 +2,7 @@
 
 import { EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Form, Input, Modal, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
@@ -97,14 +97,18 @@ export function CompanyManagement() {
   }
 
   const columns: ColumnsType<Company> = [
-    { title: "公司", key: "company", render: (_, row) => <Space direction="vertical" size={2}><Typography.Text strong>{row.name}</Typography.Text><Typography.Text type="secondary">{row.code}</Typography.Text></Space> },
+    { title: "公司", key: "company", render: (_, row) => (
+      <Tooltip title={row.code} trigger={["hover", "focus"]}>
+        <Typography.Text strong tabIndex={0}>{row.name}</Typography.Text>
+      </Tooltip>
+    ) },
     { title: "联系人", dataIndex: "contactName", render: (value: string) => value || "—" },
     { title: "联系电话", dataIndex: "contactPhone", render: (value: string) => value || "—" },
     { title: "账号 / 有效管理员", key: "accounts", render: (_, row) => <Space direction="vertical" size={2}><span>{row.accountCount} / {row.adminCount}</span>{row.adminCount === 0 && <Typography.Text type="danger">待创建公司管理员</Typography.Text>}</Space> },
     { title: "管理状态", dataIndex: "isActive", render: (value: boolean) => <Tag color={value ? "success" : "default"}>{value ? "启用" : "停用"}</Tag> },
     { title: "租期 / 到期时间", key: "billing", width: 170, render: (_, row) => <CompanyBillingState company={row} /> },
     { title: "备注", dataIndex: "notes", ellipsis: true, render: (value: string) => value || "—" },
-    { title: "操作", key: "actions", width: 260, render: (_, row) => <Space wrap>
+    { title: "操作", key: "actions", width: 320, render: (_, row) => <Space style={{ whiteSpace: "nowrap" }}>
       <Button type="link" size="small" icon={<EditOutlined />} onClick={() => edit(row)} disabled={savingId !== ""}>编辑</Button>
       <AppLink href={`/users?companyId=${row.id}`}>账号</AppLink>
       {row.billingStatus && <Button type="link" size="small" onClick={() => setRenewing(row)} disabled={savingId !== ""}>收款续费</Button>}
@@ -119,7 +123,7 @@ export function CompanyManagement() {
       <Typography.Paragraph type="secondary">每家公司独立管理账号、车辆、司机和加油台账。新公司登记首笔收款后开通。</Typography.Paragraph>
       <Input.Search aria-label="搜索公司" placeholder="搜索公司名称、编号或联系人" allowClear enterButton="搜索" onSearch={(value) => { setKeyword(value.trim()); setPagination((previous) => ({ ...previous, page: 1 })); }} style={{ maxWidth: 420, marginBottom: 20 }} />
       {companies.isError && <Alert type="error" showIcon message={companies.error.message} style={{ marginBottom: 16 }} />}
-      <Table<Company> rowKey="id" columns={columns} dataSource={companies.data?.items ?? []} loading={companies.isFetching} scroll={{ x: 1270 }} locale={{ emptyText: "暂无公司，请创建第一家公司" }} pagination={{ current: pagination.page, pageSize: pagination.pageSize, total: companies.data?.total ?? 0, showSizeChanger: true, showTotal: (total) => `共 ${total} 家公司`, onChange: (page, pageSize) => setPagination({ page, pageSize }) }} />
+      <Table<Company> rowKey="id" columns={columns} dataSource={companies.data?.items ?? []} loading={companies.isFetching} scroll={{ x: 1330 }} locale={{ emptyText: "暂无公司，请创建第一家公司" }} pagination={{ current: pagination.page, pageSize: pagination.pageSize, total: companies.data?.total ?? 0, showSizeChanger: true, showTotal: (total) => `共 ${total} 家公司`, onChange: (page, pageSize) => setPagination({ page, pageSize }) }} />
     </Card>
     <Modal title={editing ? `编辑 ${editing.name}` : "创建公司"} open={open} onCancel={() => { if (!saving) setOpen(false); }} onOk={() => form.submit()} confirmLoading={saving} okText={editing ? "保存" : "创建公司和管理员"} cancelText="取消" destroyOnHidden>
       <Form<CompanyValues> form={form} layout="vertical" disabled={saving} onFinish={save} autoComplete="off">

@@ -30,9 +30,10 @@ export function CompanySelect({ value, onChange, allowClear = true, disabled, pl
       onSearch={setKeyword}
       placeholder={placeholder}
       loading={companies.isFetching}
+      labelRender={({ label }) => label ?? "已选公司"}
       options={(companies.data?.items ?? []).map((company) => ({
         value: company.id,
-        label: `${company.name}（${company.code}）${company.isActive ? "" : " · 已停用"}`,
+        label: company.isActive ? company.name : `${company.name} · 已停用`,
       }))}
       notFoundContent={companies.isError ? "公司读取失败，请重新搜索" : companies.isFetching ? "正在读取…" : "没有匹配公司"}
       style={{ minWidth: 240, maxWidth: "100%" }}
