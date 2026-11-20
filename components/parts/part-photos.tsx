@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/api-client";
 import type { PartPhoto, PartPhotoData } from "@/lib/parts";
 import styles from "./parts.module.css";
 
-export function partPhotoSource(photo: Pick<PartPhotoData, "mimeType" | "data">) {
+function partPhotoSource(photo: Pick<PartPhotoData, "mimeType" | "data">) {
   return `data:${photo.mimeType};base64,${photo.data}`;
 }
 

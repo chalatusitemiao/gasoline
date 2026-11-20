@@ -99,13 +99,10 @@ const partInput = {
   quantity: { ...decimalInput, description: "数量大于 0，最多 7 位整数及 3 位小数。" },
   unitPrice: { ...decimalInput, description: "非负人民币单价，最多 9 位整数及 2 位小数。" },
   purchaseArea: { ...string, maxLength: 100 },
-  photos: {
-    ...array({ oneOf: [
-      object({ id: uuid }, ["id"]),
-      object({ mimeType: partPhotoMimeType, data: partPhotoData }, ["mimeType", "data"]),
-    ] }), maxItems: PART_PHOTO_LIMIT,
-    description: "单张最多 1 MiB。新增时提交图片数据；修改时 id 用于保留已有照片，省略 photos 保留现有照片，传入空数组移除全部照片。",
-  },
+};
+const retainedPartPhotos = {
+  ...array({ ...object({ id: uuid }, ["id"]), additionalProperties: false }), maxItems: PART_PHOTO_LIMIT,
+  description: "填写需要保留的已有照片编号。省略此字段会保留全部照片，提交空数组会移除全部照片。照片上传已暂停。",
 };
 const partRequired = ["vehicleId", "date", "name", "quantity", "unitPrice"];
 const partReason = { ...string, minLength: 1, maxLength: 500 };
@@ -677,7 +674,7 @@ export const openApiDocument = {
       },
       post: {
         tags: ["车辆配件"], summary: "录入配件记录",
-        description: "服务端按数量乘单价计算总价并保留两位小数。车辆及项目须属于登录账号所在公司。",
+        description: "服务端按数量乘单价计算总价并保留两位小数。车辆及项目须属于登录账号所在公司。照片上传已暂停。",
         requestBody: requestBody(object(partInput, partRequired)), responses: replies(ref("PartRecord"), 201),
       },
     },
@@ -689,7 +686,7 @@ export const openApiDocument = {
       put: {
         tags: ["车辆配件"], summary: "修改配件记录并留痕", parameters: [pathId],
         description: "公司管理员可修改本公司配件记录，录入员可修改本人创建的记录。",
-        requestBody: requestBody(object({ ...partInput, reason: partReason }, [...partRequired, "reason"])),
+        requestBody: requestBody(object({ ...partInput, photos: retainedPartPhotos, reason: partReason }, [...partRequired, "reason"])),
         responses: replies(ref("PartRecord")),
       },
       delete: {

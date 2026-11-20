@@ -15,7 +15,7 @@ import {
   type PartDeletion, type PartFieldChange, type PartPhoto, type PartRecord, type PartRecordDetail, type PartRecordsPage,
 } from "@/lib/parts";
 import { ApiError, type ApiActor } from "@/lib/server-api";
-import { listPartPhotos, syncPartPhotos } from "./photos";
+import { listPartPhotos, retainPartPhotos } from "./photos";
 
 export { listPartPhotos } from "./photos";
 
@@ -109,7 +109,9 @@ export async function getPartRecord(id: string, actor: ApiActor): Promise<PartRe
   });
 }
 
-async function partAssignments(db: FuelTx, companyId: string, input: RecordInput, previous?: PartRecord) {
+async function partAssignments(
+  db: FuelTx, companyId: string, input: Pick<RecordInput, "date" | "vehicleId" | "projectId">, previous?: PartRecord,
+) {
   const { timeZone } = await getCompanyBusinessSettings(companyId, db);
   if (input.date > todayInBusinessZone(timeZone)) throw new ApiError(400, "购买日期不能晚于今天");
 
@@ -144,8 +146,7 @@ export async function createPartRecord(input: RecordInput, actor: ApiActor): Pro
       ...partAmounts(input.quantity, input.unitPrice),
       createdById: actor.id, createdBy: actor.name, updatedBy: actor.name,
     }).returning(recordFields);
-    const photos = await syncPartPhotos(db, companyId, row.id, [], input.photos);
-    return formatRecord({ ...row, plate: vehicle.plate, projectName }, photos);
+    return formatRecord({ ...row, plate: vehicle.plate, projectName }, []);
   });
 }
 
@@ -175,7 +176,7 @@ export async function updatePartRecord(id: string, input: z.output<typeof partRe
       throw new ApiError(403, "录入员只能修改自己创建的配件记录");
     }
     const { vehicle, projectId, projectName } = await partAssignments(db, companyId, input, previous);
-    const photos = await syncPartPhotos(db, companyId, previous.id, previous.photos, input.photos);
+    const photos = await retainPartPhotos(db, companyId, previous.id, previous.photos, input.photos);
     const { date, name, purchaseArea } = input;
     const now = new Date();
     const values = {

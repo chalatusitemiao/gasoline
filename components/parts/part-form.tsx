@@ -4,7 +4,6 @@ import { SaveOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Form, Input, InputNumber, Select, Space } from "antd";
 import Decimal from "decimal.js";
-import { useState } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
 import { moneyText, QueryError } from "@/components/fuel/ui";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
@@ -49,7 +48,6 @@ export function PartForm({
   const { companyId } = useAppNavigation();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<PartFields>();
-  const [readingPhotos, setReadingPhotos] = useState(false);
   const quantity = Form.useWatch("quantity", form);
   const unitPrice = Form.useWatch("unitPrice", form);
   const options = usePartOptions();
@@ -72,10 +70,12 @@ export function PartForm({
   } : { date: today };
 
   async function submit(values: PartFields) {
-    if (readingPhotos || save.isPending) return;
+    if (save.isPending) return;
     save.reset();
-    const fields = { ...values, projectId: values.projectId ?? null, photos: values.photos ?? [] };
-    const result = (record ? partRecordUpdateSchema : partRecordInputSchema).safeParse(fields);
+    const { photos, ...details } = values;
+    const fields = { ...details, projectId: details.projectId ?? null };
+    const input = record && photos && form.isFieldTouched("photos") ? { ...fields, photos } : fields;
+    const result = (record ? partRecordUpdateSchema : partRecordInputSchema).safeParse(input);
     if (!result.success) {
       form.setFields(result.error.issues.map(({ path, message }) => ({
         name: path[0] as keyof PartFields,
@@ -170,26 +170,24 @@ export function PartForm({
           </dl>
         </div>
 
-        <Form.Item name="photos" label="照片">
-          <PartPhotoField
-            disabled={save.isPending}
-            reading={readingPhotos}
-            setReading={setReadingPhotos}
-          />
-        </Form.Item>
+        {record && record.photos.length > 0 && (
+          <Form.Item name="photos" label="已有照片">
+            <PartPhotoField disabled={save.isPending} />
+          </Form.Item>
+        )}
         {record && (
           <Form.Item name="reason" label="修改原因" rules={required}>
             <Input.TextArea maxLength={500} autoSize={{ minRows: 2, maxRows: 5 }} />
           </Form.Item>
         )}
         <Space wrap className={styles.formActions}>
-          {onCancel && <Button onClick={onCancel} disabled={save.isPending || readingPhotos}>取消</Button>}
+          {onCancel && <Button onClick={onCancel} disabled={save.isPending}>取消</Button>}
           <Button
             type="primary"
             htmlType="submit"
             icon={<SaveOutlined />}
             loading={save.isPending}
-            disabled={!options.vehicleOptions || !options.projectOptions || readingPhotos}
+            disabled={!options.vehicleOptions || !options.projectOptions}
           >
             {record ? "保存修改" : "保存配件记录"}
           </Button>

@@ -6,12 +6,10 @@ export const PART_PHOTO_MAX_BYTES = 1024 * 1024;
 export const PART_PROJECT_UNASSIGNED = "unassigned";
 export const partPhotoMimeTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 const photoMimeTypeSchema = z.enum(partPhotoMimeTypes);
-const photoIdSchema = z.uuid().transform((value) => value.toLowerCase());
-const uploadPhotoSchema = z.object({
-  mimeType: photoMimeTypeSchema,
-  data: z.string().min(4).max(Math.ceil(PART_PHOTO_MAX_BYTES / 3) * 4, "单张照片不能超过 1 MiB"),
-});
-const partPhotoInputSchema = z.union([z.object({ id: photoIdSchema }), uploadPhotoSchema]);
+const photoInputError = "照片上传已暂停，仅支持提交有效的已有照片编号";
+const partPhotoInputSchema = z.strictObject({
+  id: z.uuid(photoInputError).transform((value) => value.toLowerCase()),
+}, photoInputError);
 
 function partText(max: number, label: string) {
   return z.string().trim().max(max, `${label}最多 ${max} 字`)
@@ -25,7 +23,7 @@ export const partUnitPriceSchema = z.union([z.string(), z.number()]).transform((
   .refine((value) => /^\d{1,9}(?:\.\d{1,2})?$/.test(value), "单价必须为非负数，最多 9 位整数和 2 位小数");
 export const partMonthSchema = z.string().regex(/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/, "请选择有效月份");
 
-export const partRecordInputSchema = z.object({
+const partRecordFields = z.object({
   vehicleId: z.uuid("请选择车辆"),
   projectId: z.uuid("请选择有效项目").nullable().optional(),
   date: z.iso.date("请输入有效的购买日期")
@@ -34,10 +32,14 @@ export const partRecordInputSchema = z.object({
   quantity: partQuantitySchema,
   unitPrice: partUnitPriceSchema,
   purchaseArea: partText(100, "购买地区").default(""),
-  photos: z.array(partPhotoInputSchema).max(PART_PHOTO_LIMIT, `最多上传 ${PART_PHOTO_LIMIT} 张照片`).optional(),
 });
 
-export const partRecordUpdateSchema = partRecordInputSchema.extend({
+export const partRecordInputSchema = partRecordFields.extend({
+  photos: z.array(z.never("照片上传已暂停")).optional(),
+});
+
+export const partRecordUpdateSchema = partRecordFields.extend({
+  photos: z.array(partPhotoInputSchema).max(PART_PHOTO_LIMIT, `最多保留 ${PART_PHOTO_LIMIT} 张照片`).optional(),
   reason: partText(500, "修改原因").min(1, "请填写修改原因"),
 });
 
