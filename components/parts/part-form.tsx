@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Form, Input, InputNumber, Select, Space } from "antd";
 import Decimal from "decimal.js";
 import { useAppNavigation } from "@/components/app-navigation";
+import { DateInput } from "@/components/date-input";
 import { moneyText, QueryError } from "@/components/fuel/ui";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import {
@@ -133,7 +134,7 @@ export function PartForm({
             />
           </Form.Item>
           <Form.Item name="date" label="购买日期" rules={required}>
-            <Input type="date" max={today} />
+            <DateInput maxDate={today} />
           </Form.Item>
           <Form.Item name="name" label="配件名称" rules={required}>
             <Input maxLength={100} placeholder="请输入配件名称" />

@@ -6,6 +6,7 @@ import { App, Button, Card, Form, Input, Modal, Select, Space, Table, type Table
 import { useState } from "react";
 import { AdminPage } from "@/components/admin-page";
 import { AppLink, useAppNavigation } from "@/components/app-navigation";
+import { DateInput } from "@/components/date-input";
 import { moneyText, numberText, QueryError, stampText, tablePagination, type Pagination } from "@/components/fuel/ui";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import { FUEL_PAGE_SIZE, type FuelPage } from "@/lib/fuel";
@@ -222,7 +223,7 @@ export function PartsRecords({ initialMonth, today, timeZone }: {
               />
             </Form.Item>
             <Form.Item name="month" label="购买月份">
-              <Input type="month" max={initialMonth} />
+              <DateInput picker="month" maxDate={initialMonth} />
             </Form.Item>
             <Form.Item name="projectId" label="项目">
               <Select

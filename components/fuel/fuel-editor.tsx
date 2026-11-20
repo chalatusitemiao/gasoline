@@ -1,9 +1,10 @@
 "use client";
 
-import { ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from "@ant-design/pro-components";
+import { ProForm, ProFormDigit, ProFormSelect, ProFormTextArea } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Empty, Form, Spin } from "antd";
 import Decimal from "decimal.js";
+import { DateInput } from "@/components/date-input";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import {
   fuelRecordInputSchema,
@@ -191,7 +192,9 @@ export function FuelEditor({
                 .map(driverOption)}
               fieldProps={{ loading: options.isPending, optionFilterProp: "searchText" }}
             />
-            <ProFormText name="date" label="加油日期" rules={required} fieldProps={{ type: "date", max: today }} />
+            <Form.Item name="date" label="加油日期" rules={required}>
+              <DateInput maxDate={today} />
+            </Form.Item>
             <ProFormSelect name="fuelType" label="油品" rules={required} options={FUEL_OPTIONS} />
             <ProFormDigit name="liters" label="加油量（L）" rules={required} fieldProps={numericInput} />
             <ProFormDigit name="unitPrice" label="单价（元/L）" rules={required} fieldProps={numericInput} />

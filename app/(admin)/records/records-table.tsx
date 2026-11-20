@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Form, Space, Statistic } from "antd";
 import { useState } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
+import { DateInput } from "@/components/date-input";
 import {
   AnomalyTag, anomalyText, driverOption, FuelPage, FULL_TANK_NOTE, fuelText, moneyText, numberText,
   QueryError, tablePagination, type Pagination,
@@ -206,8 +207,12 @@ export function RecordsTable({
         {options.error && <QueryError error={options.error} retry={() => { void options.refetch(); }} />}
         <ProForm<Filters> form={form} initialValues={{ anomaliesOnly }} onFinish={filter} submitter={false}>
           <div className={styles.filters}>
-            <ProFormText name="from" label="开始日期" fieldProps={{ type: "date", max: today }} />
-            <ProFormText name="to" label="结束日期" fieldProps={{ type: "date", max: today }} />
+            <Form.Item name="from" label="开始日期">
+              <DateInput maxDate={today} />
+            </Form.Item>
+            <Form.Item name="to" label="结束日期">
+              <DateInput maxDate={today} />
+            </Form.Item>
             <ProFormSelect
               name="vehicleId" label="车辆" placeholder="全部车辆" showSearch
               options={options.data?.vehicles.map((row) => ({ label: row.plate, value: row.id }))}

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Form, Input, Space, Tag, Tooltip } from "antd";
 import { useState, type ReactNode } from "react";
 import { useAppNavigation } from "@/components/app-navigation";
+import { DateInput } from "@/components/date-input";
 import { apiFetch, jsonRequest } from "@/lib/api-client";
 import type { FleetProjectOption } from "@/lib/fleet-project";
 import { driverInputSchema, FUEL_PAGE_SIZE, vehicleInputSchema, type Driver, type FuelPage as PageData, type FuelType, type Vehicle } from "@/lib/fuel";
@@ -300,7 +301,11 @@ export function ArchiveManager({
           options={projectOptions}
           fieldProps={{ allowClear: true, showSearch: true, optionFilterProp: "label", loading: projects.isFetching }}
         />
-        {vehicle && <ProFormText name="purchaseDate" label="购入日期" fieldProps={{ type: "date" }} />}
+        {vehicle && (
+          <Form.Item name="purchaseDate" label="购入日期">
+            <DateInput />
+          </Form.Item>
+        )}
         {vehicle && canViewPurchasePrice && <ProFormDigit
           name="purchasePrice"
           label="购入价格（元）"

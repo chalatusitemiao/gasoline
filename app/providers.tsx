@@ -1,6 +1,7 @@
 "use client";
 
 import "@ant-design/v5-patch-for-react-19";
+import "dayjs/locale/zh-cn";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App, ConfigProvider, type ThemeConfig } from "antd";
 import zhCN from "antd/locale/zh_CN";
