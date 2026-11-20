@@ -2,16 +2,17 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Select } from "antd";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { apiFetch } from "@/lib/api-client";
 import type { CompanyPage } from "@/lib/company";
 
-export function CompanySelect({ value, onChange, allowClear = true, disabled, placeholder = "全部公司" }: {
+export function CompanySelect({ value, onChange, allowClear = true, disabled, placeholder = "全部公司", style }: {
   value?: string;
   onChange?: (value: string | undefined) => void;
   allowClear?: boolean;
   disabled?: boolean;
   placeholder?: string;
+  style?: CSSProperties;
 }) {
   const [keyword, setKeyword] = useState("");
   const companies = useQuery({
@@ -36,7 +37,7 @@ export function CompanySelect({ value, onChange, allowClear = true, disabled, pl
         label: company.isActive ? company.name : `${company.name} · 已停用`,
       }))}
       notFoundContent={companies.isError ? "公司读取失败，请重新搜索" : companies.isFetching ? "正在读取…" : "没有匹配公司"}
-      style={{ minWidth: 240, maxWidth: "100%" }}
+      style={{ minWidth: 240, maxWidth: "100%", ...style }}
     />
   );
 }

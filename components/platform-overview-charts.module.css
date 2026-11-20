@@ -1,0 +1,149 @@
+.comparison,
+.share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--app-section-gap);
+}
+
+.plot {
+  min-inline-size: 0;
+}
+
+.ranking {
+  min-inline-size: 0;
+  padding-block-start: 16px;
+  border-block-start: 1px solid var(--app-border);
+}
+
+.rankingTitle {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rankingList,
+.shareLegend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankingItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 34px;
+}
+
+.rankingItem + .rankingItem,
+.shareItem + .shareItem {
+  border-block-start: 1px solid var(--app-border);
+}
+
+.rank {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: 50%;
+  background: var(--app-layout-bg);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.rankingItem:nth-child(-n + 3) .rank {
+  background: #e6f4ff;
+  color: #0958d9;
+  font-weight: 600;
+}
+
+.companyName {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rankValue {
+  max-inline-size: 58%;
+  overflow-wrap: anywhere;
+  text-align: end;
+  font-weight: 600;
+}
+
+.share {
+  align-items: center;
+}
+
+.donut {
+  position: relative;
+}
+
+.donutTotal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donutTotal strong {
+  color: var(--app-text);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shareItem {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) fit-content(50%) auto;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 29px;
+}
+
+.swatch {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+}
+
+.shareValue {
+  color: var(--app-text-secondary);
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+.empty {
+  display: grid;
+  flex: 1;
+  min-block-size: 216px;
+  place-items: center;
+}
+
+@container chart-panel (min-width: 680px) {
+  .comparison {
+    grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+  }
+
+  .ranking {
+    padding-block-start: 0;
+    padding-inline-start: 16px;
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--app-border);
+  }
+}
+
+@container chart-panel (min-width: 450px) {
+  .share {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1fr);
+  }
+}

@@ -4,6 +4,7 @@
   border-radius: var(--app-card-radius);
   background: var(--app-surface);
   --scalar-font: var(--app-font);
+  --scalar-content-max-width: 100%;
 }
 
 .reference :global(.light-mode) {

@@ -54,9 +54,7 @@
 .content {
   box-sizing: border-box;
   inline-size: 100%;
-  max-width: 1680px;
   min-width: 0;
-  margin-inline: auto;
   padding-inline: clamp(16px, 3.08vw, 40px);
 }
 

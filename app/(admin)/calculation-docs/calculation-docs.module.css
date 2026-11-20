@@ -1,7 +1,7 @@
 .layout {
   display: grid;
   align-items: start;
-  grid-template-columns: 180px minmax(0, 860px);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: var(--app-section-gap);
 }
 

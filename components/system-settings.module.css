@@ -1,7 +1,6 @@
 .form {
   display: grid;
   gap: var(--app-section-gap);
-  width: min(100%, 760px);
 }
 
 .fields {

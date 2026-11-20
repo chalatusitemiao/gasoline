@@ -3,7 +3,6 @@
   grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
   align-items: start;
   gap: clamp(16px, 2.5vw, 36px);
-  max-inline-size: 1240px;
 }
 
 .contents {

@@ -1,0 +1,139 @@
+.overview {
+  --report-gap: clamp(12px, 1.5vw, 24px);
+  container: platform-overview / inline-size;
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--report-gap);
+}
+
+.filterBar,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-inline-size: 0;
+}
+
+.filterBar {
+  justify-content: space-between;
+}
+
+.filters {
+  gap: 8px;
+}
+
+.companyFilter {
+  flex: 1 1 13rem;
+  min-inline-size: 0;
+}
+
+.rangeFilter {
+  max-inline-size: 100%;
+}
+
+.filterNote {
+  font-size: 13px;
+}
+
+.content,
+.secondary {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--report-gap);
+}
+
+.content > .metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.content > .metrics > div {
+  min-block-size: 116px;
+}
+
+.secondary {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+
+.archiveCard,
+.details,
+.loading {
+  min-inline-size: 0;
+}
+
+.archiveCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.archiveCard > :global(.ant-card-body) {
+  display: grid;
+  flex: 1;
+}
+
+.sectionTitle {
+  margin: 0;
+  font: inherit;
+}
+
+.archiveGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.archiveGrid > div {
+  display: grid;
+  align-content: center;
+  padding: 14px clamp(12px, 1.3vw, 20px);
+  border-radius: 6px;
+  background: #f7f9fc;
+}
+
+.archiveGrid dt,
+.archiveGrid small {
+  color: var(--app-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.archiveGrid dd {
+  margin: 4px 0 0;
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.companyName {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.details :global(.ant-table) {
+  font-variant-numeric: tabular-nums;
+}
+
+@container platform-overview (max-width: 780px) {
+  .content > .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .secondary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container platform-overview (max-width: 520px) {
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    inline-size: 100%;
+  }
+
+  .rangeFilter {
+    inline-size: 100%;
+  }
+}
